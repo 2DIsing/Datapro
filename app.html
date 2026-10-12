@@ -97,6 +97,33 @@ select.col { width: 150px; }
 
 .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .tools .btn { justify-content: center; }
+.tools .btn.wide { grid-column: 1 / -1; }
+
+/* 2D mapping viewer: full-screen layer; plot stays on top while the colour controls scroll */
+.mapview { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow: auto; overscroll-behavior: contain;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
+.mapview .mapbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 16px; }
+.mapview .mapbar h3 { margin: 0 auto 0 0; font-size: 17px; font-weight: 600; }
+.mapview .mapplot { position: sticky; top: 0; z-index: 1; background: var(--bg); padding: 0 16px 6px; }
+.mapview #mapPlot { height: 52vh; min-height: 280px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; touch-action: none; }
+@media (min-width: 900px) { .mapview #mapPlot { height: 62vh; } }
+.mapview .mapctl { padding: 4px 16px 24px; display: grid; gap: 12px; max-width: 900px; }
+.mapview .ctlcard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 10px; min-width: 0; }
+.mapview .ctlcard h4 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.mapview .rangerow { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 4.6em; gap: 8px; align-items: center; font-size: 14px; }
+.mapview .rangerow input[type=range] { width: 100%; accent-color: var(--accent); }
+.mapview .preview { height: 16px; border-radius: 4px; border: 1px solid var(--line); }
+.mapview .colorrow { display: grid; grid-template-columns: 2.6em 44px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; font-size: 14px; }
+.mapview .colorrow input[type=color] { width: 44px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; }
+.mapview .inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 14px; }
+.mapview .inline input[type=text] { width: 7.5em; }
+.sheet textarea { width: 100%; min-height: 70px; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: var(--panel); font: 13px var(--mono); }
+.sheet .grid2 select { width: 100%; }
+.sheet details { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+.sheet details summary { cursor: pointer; font-size: 14px; font-weight: 500; }
+.sheet details[open] summary { margin-bottom: 8px; }
+.sheet .chkline { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0; }
+.sheet .chkline input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 .status { font-size: 13px; color: var(--muted); padding: 8px 2px 0; display: flex; gap: 8px; align-items: baseline; }
 .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; transform: translateY(-1px); }
@@ -168,6 +195,7 @@ select.col { width: 150px; }
           <button class="btn" id="btnMerge" type="button">合并 sweep</button>
           <button class="btn" id="btnReset" type="button">还原数据</button>
           <button class="btn" id="btnCopy" type="button">复制 X/Y</button>
+          <button class="btn wide" id="btnMap" type="button">2D mapping</button>
         </div>
       </section>
 
@@ -203,8 +231,15 @@ select.col { width: 150px; }
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
-<script>
+<script id="src-delaunator">/*__DELAUNATOR__*/</script>
+<script id="src-core">
 /*__CORE__*/
+</script>
+<script id="src-mapping">
+/*__MAPPING__*/
+</script>
+<script>
+/*__CMAPS__*/
 </script>
 <script>
 (() => {
@@ -440,7 +475,11 @@ function plot() {
   if (key !== state.plotKey) { state.plotKey = key; state.zoomed = false; }
   Plotly.react(el, traces, layout, { responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset' });
   el.classList.toggle('gesture', state.mode === 'gesture');
-  if (!el._bound) { bindPlotEvents(el); bindTouchGestures(el); }
+  if (!el._bound) {
+    bindPlotEvents(el);
+    bindTouchGestures(el, { active: () => state.mode === 'gesture', reset: resetView,
+      get zoomed() { return state.zoomed; }, set zoomed(v) { state.zoomed = v; } });
+  }
   updatePointUi();
 }
 
@@ -481,7 +520,7 @@ function dragModeOf(mode) {
 // ------------------------------------------------------------------ touch gestures (photo-style)
 // one finger pans (with inertia), two fingers pinch around their midpoint, double tap zooms in / back out,
 // single tap shows the nearest value. Ranges are worked in axis coordinates, so log axes behave too.
-function bindTouchGestures(el) {
+function bindTouchGestures(el, ctx) {
   const axes = () => { const L = el._fullLayout; return L && L.xaxis && L.yaxis ? [L.xaxis, L.yaxis] : null; };
   // pixel (relative to el) -> axis coordinate, from a snapshot of the axis
   const snap = ax => ({ r0: ax.range[0], r1: ax.range[1], off: ax._offset, len: ax._length });
@@ -497,7 +536,7 @@ function bindTouchGestures(el) {
   }
   function apply(xr, yr) {
     pending = { 'xaxis.range': xr, 'yaxis.range': yr };
-    state.zoomed = true;
+    ctx.zoomed = true;
     // one redraw per frame; the timer covers views where animation frames are paused
     if (!frame) { frame = requestAnimationFrame(flush); timer = setTimeout(flush, 40); }
   }
@@ -522,7 +561,7 @@ function bindTouchGestures(el) {
   }
 
   el.addEventListener('touchstart', e => {
-    if (state.mode !== 'gesture' || !axes()) return;
+    if (!ctx.active() || !axes()) return;
     cancelAnimationFrame(inertia); inertia = 0;
     e.preventDefault(); e.stopPropagation();
     const ts = [...e.touches].map(local);
@@ -532,7 +571,7 @@ function bindTouchGestures(el) {
   }, { capture: true, passive: false });
 
   el.addEventListener('touchmove', e => {
-    if (state.mode !== 'gesture' || !g) return;
+    if (!ctx.active() || !g) return;
     e.preventDefault(); e.stopPropagation();
     const ts = [...e.touches].map(local);
     if (g.kind === 'pan' && ts.length === 1) {
@@ -557,7 +596,7 @@ function bindTouchGestures(el) {
   }, { capture: true, passive: false });
 
   el.addEventListener('touchend', e => {
-    if (state.mode !== 'gesture' || !g) return;
+    if (!ctx.active() || !g) return;
     e.preventDefault(); e.stopPropagation();
     if (e.touches.length === 1) { startPan(local(e.touches[0])); g.moved = true; return; }  // pinch -> pan
     if (e.touches.length) return;
@@ -590,14 +629,14 @@ function bindTouchGestures(el) {
     const now = performance.now();
     if (lastTap && now - lastTap.t < 320 && Math.hypot(p.x - lastTap.p.x, p.y - lastTap.p.y) < 30) {
       clearTimeout(tapTimer); lastTap = null;
-      if (state.zoomed) { resetView(); return; }
+      if (ctx.zoomed) { ctx.reset(); return; }
       const [xa, ya] = axes(), sx = snap(xa), sy = snap(ya), k = 1 / 2.5;
       const cx = coord(sx, fracX(sx, p.x)), cy = coord(sy, fracY(sy, p.y));
       const wx = (sx.r1 - sx.r0) * k, wy = (sy.r1 - sy.r0) * k;
       // zoom into the tapped point, keeping it where the finger is
       const x0 = cx - fracX(sx, p.x) * wx, y0 = cy - fracY(sy, p.y) * wy;
       Plotly.relayout(el, { 'xaxis.range': [x0, x0 + wx], 'yaxis.range': [y0, y0 + wy] });
-      state.zoomed = true;
+      ctx.zoomed = true;
       return;
     }
     lastTap = { p, t: now };
@@ -610,8 +649,8 @@ function bindTouchGestures(el) {
   }
 
   el.on('plotly_relayout', ev => {
-    if (ev && (ev['xaxis.autorange'] || ev['yaxis.autorange'])) state.zoomed = false;
-    else if (ev && (ev['xaxis.range[0]'] !== undefined || ev['xaxis.range'])) state.zoomed = true;
+    if (ev && (ev['xaxis.autorange'] || ev['yaxis.autorange'])) ctx.zoomed = false;
+    else if (ev && (ev['xaxis.range[0]'] !== undefined || ev['xaxis.range'])) ctx.zoomed = true;
   });
 }
 
@@ -1013,6 +1052,363 @@ async function copyXY() {
   }
 }
 $('#btnCopy').onclick = () => { if (needXY()) copyXY(); };
+
+// ------------------------------------------------------------------ 2D mapping
+// Settings dialog mirrors open_2d_mapping_dialog; the result window mirrors show_mapping_window.
+const MAPPING_DEFAULTS = {
+  mode: 'single_param', ySource: 'from_column', yManual: '', yAgg: 'max', sym: false, asym: false, bg: false, log: false,
+  sigMin: '', sigMax: '', rangeMode: 'overlap', nanFill: 'nan', transform: false, transformMode: 'auto', transformRatio: '1.0',
+  grid: 600, yInterp: 'smooth', cmap: 'RdBu_r', vmin: '', vmax: '',
+};
+const CMAP_NAMES = Object.keys(window.DP_CMAPS || {});
+
+async function loadMapSettings() {
+  try { return JSON.parse((await kv('get', 'mapset')) || '{}'); } catch (e) { return {}; }
+}
+
+$('#btnMap').onclick = async () => {
+  const files = selectedFiles();
+  if (files.length < 2) { toast('2D mapping 至少要选 2 个文件'); return; }
+  const cols = columnsOf(files);
+  const saved = await loadMapSettings();
+  const S = { ...MAPPING_DEFAULTS, ...saved };
+  const pick = (key, fallback) => (cols.includes(S[key]) ? S[key] : fallback);
+  S.xCol = pick('xCol', cols[0]);
+  S.zCol = pick('zCol', cols[1] || cols[0]);
+  S.yColDual = pick('yColDual', cols[2] || cols[0]);
+  S.yCol = pick('yCol', cols[0]);
+  // axis titles start as the column names until the user sets their own
+  if (saved.xlabel === undefined) S.xlabel = S.xCol;
+  if (saved.ylabel === undefined) S.ylabel = S.mode === 'dual_gate' ? S.yColDual : S.yCol;
+  if (saved.zlabel === undefined) S.zlabel = S.zCol;
+  const opts = (v) => cols.map(c => `<option value="${esc(c)}"${c === v ? ' selected' : ''}>${esc(c)}</option>`).join('');
+  const chk = (name, label) => `<label class="chkline"><input type="checkbox" name="${name}" id="map_${name}"${S[name] ? ' checked' : ''}>${label}</label>`;
+  const txt = (name, label, extra = '') => `<label>${label}<input type="text" name="${name}" id="map_${name}" value="${esc(S[name] ?? '')}" autocomplete="off" ${extra}></label>`;
+  const body = `
+    <fieldset><legend>模式</legend>${radios('mode', [['single_param', '单参数（每个文件一个 Y 值）'], ['dual_gate', '双栅 / 散点（每个文件都有 X、Y、Z 列）']], S.mode)}</fieldset>
+    <fieldset><legend>列</legend><div class="grid2">
+      <label>X 列（扫描量）<select name="xCol" id="map_xCol">${opts(S.xCol)}</select></label>
+      <label>Z 列（信号）<select name="zCol" id="map_zCol">${opts(S.zCol)}</select></label>
+      <label data-dual>Y 列（第二个栅压）<select name="yColDual" id="map_yColDual">${opts(S.yColDual)}</select></label></div></fieldset>
+    <fieldset data-single><legend>Y 轴参数值</legend>
+      ${radios('ySource', [['from_column', '从某一列提取'], ['manual', '手动填写（逗号分隔，按下面的文件顺序）']], S.ySource)}
+      <div class="grid2">
+        <label>列<select name="yCol" id="map_yCol">${opts(S.yCol)}</select></label>
+        <label>取值方式<select name="yAgg" id="map_yAgg">${[['max', '最大值'], ['min', '最小值'], ['mean', '平均值'], ['median', '中位数'], ['first', '第一个点']].map(([v, l]) => `<option value="${v}"${v === S.yAgg ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>
+      <textarea name="yManual" id="map_yManual" placeholder="例如 -4, -3.8, -3.6 …">${esc(S.yManual)}</textarea>
+      <div class="list">${files.map((f, i) => `<div>${i + 1}. ${esc(f)}</div>`).join('')}</div></fieldset>
+    <details><summary>处理选项</summary>
+      ${chk('sym', '对称化 R(x) = [R(x)+R(−x)]/2')}${chk('asym', '反对称化 R(x) = [R(x)−R(−x)]/2')}
+      ${chk('bg', '扣除线性背景')}${chk('log', '对数：log10(|Z|)')}
+      <fieldset style="margin-top:8px"><legend>信号范围（色标上下限，留空 = 不限）</legend><div class="grid2">${txt('sigMin', '最小', 'inputmode="decimal"')}${txt('sigMax', '最大', 'inputmode="decimal"')}</div></fieldset>
+      <fieldset data-single><legend>各文件扫描范围不同时</legend>${radios('rangeMode', [['overlap', '只用重叠部分（交集）'], ['union_boundary', '全范围，范围外用边界值延伸'], ['union_nan', '全范围，范围外留空']], S.rangeMode)}</fieldset>
+      <fieldset><legend>空值填充</legend>${radios('nanFill', [['nan', '留空'], ['zero', '填 0'], ['max', '填信号最大值'], ['min', '填信号最小值']], S.nanFill)}</fieldset>
+    </details>
+    <details><summary>坐标变换</summary>
+      ${chk('transform', '做坐标变换')}
+      <p class="note">n = (X + r·Y)/√(1+r²)，D = (−r·X + Y)/√(1+r²)，r = 扫描比例 dY/dX，n ⊥ D</p>
+      <fieldset>${radios('transformMode', [['auto', '自动从数据计算 r（仅双栅模式）'], ['manual', '手动填 r']], S.transformMode)}
+        <div class="grid2">${txt('transformRatio', 'r =', 'inputmode="decimal"')}</div></fieldset>
+    </details>
+    <details><summary>出图选项</summary>
+      <fieldset data-single><legend>Y 方向</legend>${radios('yInterp', [['smooth', '插值成平滑网格'], ['discrete', '不插值，每个参数值一行']], S.yInterp)}</fieldset>
+      <div class="grid2" style="margin-bottom:10px">
+        <label>网格分辨率<input type="number" name="grid" id="map_grid" value="${esc(S.grid)}" min="50" max="2000" step="50" inputmode="numeric"></label>
+        <label>色标<select name="cmap" id="map_cmap">${CMAP_NAMES.map(n => `<option${n === S.cmap ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        ${txt('xlabel', 'X 轴标题')}${txt('ylabel', 'Y 轴标题')}${txt('zlabel', '色标标题')}<span></span>
+        ${txt('vmin', 'vmin（留空自动）', 'inputmode="decimal"')}${txt('vmax', 'vmax（留空自动）', 'inputmode="decimal"')}
+      </div>
+    </details>`;
+  const r = await sheet('2D mapping', `${files.length} 个文件`, body,
+    [{ label: '取消', value: null }, { label: '生成', value: 'ok', primary: true }],
+    scrim => {
+      const form = scrim.querySelector('form');
+      const sync = () => {
+        const dual = form.elements.mode.value === 'dual_gate';
+        form.querySelectorAll('[data-dual]').forEach(e => { e.hidden = !dual; });
+        form.querySelectorAll('[data-single]').forEach(e => { e.hidden = dual; });
+      };
+      form.addEventListener('change', sync);
+      sync();
+    });
+  if (!r) return;
+  const f = r.form, v = n => f.elements[n].value, c = n => f.elements[n].checked;
+  const s = {
+    mode: v('mode'), xCol: v('xCol'), zCol: v('zCol'), yColDual: v('yColDual'), ySource: v('ySource'), yManual: v('yManual'),
+    yCol: v('yCol'), yAgg: v('yAgg'), sym: c('sym'), asym: c('asym'), bg: c('bg'), log: c('log'), sigMin: v('sigMin'), sigMax: v('sigMax'),
+    rangeMode: v('rangeMode'), nanFill: v('nanFill'), transform: c('transform'), transformMode: v('transformMode'),
+    transformRatio: v('transformRatio'), grid: Number(v('grid')) || 600, yInterp: v('yInterp'), cmap: v('cmap'),
+    xlabel: v('xlabel'), ylabel: v('ylabel'), zlabel: v('zlabel'), vmin: v('vmin'), vmax: v('vmax'),
+  };
+  try { await kv('put', 'mapset', JSON.stringify(s)); } catch (e) { /* keep going without remembering */ }
+  // only the columns the computation reads go to the worker
+  const need = [...new Set([s.xCol, s.zCol, s.mode === 'dual_gate' ? s.yColDual : (s.ySource === 'from_column' ? s.yCol : null)].filter(Boolean))];
+  const payload = files.map(name => {
+    const t = fm.current(name), cols = {};
+    for (const cn of need) if (t.columns.includes(cn)) cols[cn] = Float64Array.from(t.data[cn], DP.toNum);
+    return { name, cols };
+  });
+  let out;
+  try {
+    out = await withBusy(`正在生成 mapping（${files.length} 个文件）…`, () => runMapping(payload, s));
+  } catch (e) {
+    (e.logs || []).forEach(m => log(m));
+    log(`2D mapping 失败：${e.message}`, true);
+    toast('生成失败，详见记录');
+    return;
+  }
+  out.logs.forEach(m => log(m));
+  log(`2D mapping 完成：${out.result.nx} × ${out.result.ny}`);
+  openMapView(out.result, s);
+};
+
+const WORKER_MAIN = `
+self.onmessage = e => {
+  const { id, files, settings } = e.data, logs = [];
+  try {
+    const r = DP.mapping.computeMapping(files, settings, m => logs.push(m));
+    self.postMessage({ id, ok: true, result: r, logs }, [r.Z.buffer]);
+  } catch (err) { self.postMessage({ id, ok: false, error: String((err && err.message) || err), logs }); }
+};`;
+let mapWorker = null, mapJob = 0;
+function computeHere(files, s) {
+  const logs = [];
+  return { result: DP.mapping.computeMapping(files, s, m => logs.push(m)), logs };
+}
+function runMapping(files, s) {
+  if (!mapWorker) {
+    try {
+      const src = ['src-delaunator', 'src-core', 'src-mapping'].map(id => document.getElementById(id).textContent).join('\n;\n') + WORKER_MAIN;
+      mapWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    } catch (e) { mapWorker = false; }
+  }
+  if (!mapWorker) return new Promise(res => setTimeout(res, 30)).then(() => computeHere(files, s));
+  return new Promise((resolve, reject) => {
+    const id = ++mapJob, w = mapWorker;
+    const done = () => { w.removeEventListener('message', onMsg); w.removeEventListener('error', onErr); };
+    const onMsg = e => {
+      if (e.data.id !== id) return;
+      done();
+      if (e.data.ok) resolve(e.data);
+      else reject(Object.assign(new Error(e.data.error), { logs: e.data.logs }));
+    };
+    // a worker that cannot start (blocked by the page's security policy) -> compute on the page instead
+    const onErr = () => { done(); mapWorker = false; try { resolve(computeHere(files, s)); } catch (err) { reject(err); } };
+    w.addEventListener('message', onMsg);
+    w.addEventListener('error', onErr);
+    w.postMessage({ id, files, settings: s });
+  });
+}
+
+function openMapView(M, s) {
+  const MP = DP.mapping;
+  const v = {
+    swapped: false, templateName: s.cmap, template: MP.lutFromHex(DP_CMAPS[s.cmap] || DP_CMAPS.RdBu_r),
+    mode: 'template', low: 0, high: 1, useMid: true, midPos: 0.5, colors: {},
+    vmin: M.vmin, vmax: M.vmax, zoomed: false,
+  };
+  const fromTemplate = () => {
+    v.colors.Low = MP.sample(v.template, v.low);
+    v.colors.Mid = MP.sample(v.template, 0.5 * (v.low + v.high));
+    v.colors.High = MP.sample(v.template, v.high);
+  };
+  fromTemplate();
+  const lut = () => {
+    const base = v.mode === 'custom' ? MP.customLut(v.colors.Low, v.colors.High, v.useMid ? v.colors.Mid : null, v.midPos) : v.template;
+    return MP.truncateLut(base, v.low, v.high);
+  };
+
+  const root = document.createElement('div');
+  root.className = 'mapview';
+  root.setAttribute('role', 'dialog');
+  root.setAttribute('aria-label', '2D mapping');
+  const colorRow = k => `<div class="colorrow" data-key="${k}"><span>${{ Low: '低', Mid: '中', High: '高' }[k]}</span>
+    <input type="color" id="mc_${k}" aria-label="${k} 颜色"><input type="text" id="mcrgb_${k}" aria-label="${k} RGB" placeholder="R,G,B">
+    <input type="text" id="mchex_${k}" aria-label="${k} 十六进制" placeholder="#RRGGBB"></div>`;
+  root.innerHTML = `
+    <div class="mapbar"><h3>2D mapping</h3>
+      <button class="btn small" type="button" id="mvSwap">交换 X/Y</button>
+      <button class="btn small" type="button" id="mvReset">复位视图</button>
+      <button class="btn small" type="button" id="mvClose">关闭</button></div>
+    <div class="mapplot"><div id="mapPlot"></div></div>
+    <div class="mapctl">
+      <div class="ctlcard"><h4>色标范围</h4>
+        <div class="rangerow"><span>低</span><input type="range" id="mvLow" min="0" max="1" step="0.01"><input type="text" id="mvLowT" inputmode="decimal" aria-label="低端"></div>
+        <div class="rangerow"><span>高</span><input type="range" id="mvHigh" min="0" max="1" step="0.01"><input type="text" id="mvHighT" inputmode="decimal" aria-label="高端"></div>
+        <div class="preview" id="mvPreview"></div>
+        <div class="inline">vmin <input type="text" id="mvVmin" inputmode="decimal"> vmax <input type="text" id="mvVmax" inputmode="decimal">
+          <button class="btn small" type="button" id="mvAutoV">自动（2%–98%）</button></div></div>
+      <div class="ctlcard"><h4>颜色</h4>
+        <div class="inline"><label class="chk"><input type="radio" name="mvMode" value="template" checked> 模板</label>
+          <select id="mvTemplate">${CMAP_NAMES.map(n => `<option${n === s.cmap ? ' selected' : ''}>${n}</option>`).join('')}</select>
+          <label class="chk"><input type="radio" name="mvMode" value="custom"> 自定义</label>
+          <label class="chk"><input type="checkbox" id="mvUseMid" checked> 用中间色</label></div>
+        ${colorRow('Low')}${colorRow('Mid')}${colorRow('High')}
+        <div class="rangerow"><span>中点</span><input type="range" id="mvMidPos" min="0.01" max="0.99" step="0.01"><input type="text" id="mvMidPosT" inputmode="decimal" aria-label="中点位置"></div>
+        <div class="inline">中间色对应 Z = <input type="text" id="mvMidZ" inputmode="decimal"><button class="btn small" type="button" id="mvMidSet">设定</button>
+          <button class="btn small" type="button" id="mvFromTpl">从模板取色</button></div>
+        <div class="inline"><button class="btn small" type="button" id="mvLoadPal">载入 .pal</button>
+          <button class="btn small" type="button" id="mvSavePal">导出色标 .pal（Origin）</button>
+          <input type="file" id="mvPalFile" hidden></div></div>
+      <div class="ctlcard"><h4>导出</h4>
+        <div class="inline"><button class="btn small" type="button" id="mvXlsx">数据 Excel</button>
+          <button class="btn small" type="button" id="mvCsv">数据 CSV</button>
+          <button class="btn small" type="button" id="mvPng">图片 PNG</button>
+          <button class="btn small" type="button" id="mvSvg">图片 SVG</button></div></div>
+    </div>`;
+  document.body.append(root);
+  const prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  const q = id => root.querySelector('#' + id);
+  const el = q('mapPlot');
+  const close = () => { Plotly.purge(el); root.remove(); document.body.style.overflow = prevOverflow; document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape' && !document.querySelector('.scrim')) close(); };
+  document.addEventListener('keydown', onKey);
+  q('mvClose').onclick = close;
+
+  // matrix as displayed: rows sorted by y (discrete maps keep the file order otherwise), optional swap
+  function display() {
+    const { xi, yi, Z, nx, ny } = M;
+    const order = Array.from(yi, (_, j) => j).sort((a, b) => yi[a] - yi[b]);
+    const ys = order.map(j => yi[j]);
+    const cell = (j, i) => { const z = Z[j * nx + i]; return Number.isNaN(z) ? null : z; };
+    if (!v.swapped) return { x: Array.from(xi), y: ys, z: order.map(j => Array.from({ length: nx }, (_, i) => cell(j, i))), xl: s.xlabel, yl: s.ylabel };
+    return { x: ys, y: Array.from(xi), z: Array.from({ length: nx }, (_, i) => order.map(j => cell(j, i))), xl: s.ylabel, yl: s.xlabel };
+  }
+  let shown = null;
+  function render(full) {
+    const ink = cssVar('--ink'), muted = cssVar('--muted');
+    if (full || !shown) shown = display();
+    const scale = MP.plotlyScale(lut());
+    q('mvPreview').style.background = `linear-gradient(to right, ${scale.filter((_, i) => i % 16 === 0 || i === 255).map(([p, c]) => `${c} ${(p * 100).toFixed(1)}%`).join(',')})`;
+    const ax = t => ({ title: { text: t, font: { size: 13 } }, color: ink, linecolor: muted, mirror: true, ticks: 'outside', tickcolor: muted,
+      showgrid: false, zeroline: false, exponentformat: 'e', automargin: true });
+    Plotly.react(el, [{
+      type: 'heatmap', x: shown.x, y: shown.y, z: shown.z, zmin: v.vmin, zmax: v.vmax, colorscale: scale, zsmooth: false,
+      colorbar: { title: { text: M.zlabel, side: 'right' }, tickfont: { color: ink }, outlinewidth: 0, thickness: 14 },
+      hovertemplate: `${esc(shown.xl)}=%{x:.5g}<br>${esc(shown.yl)}=%{y:.5g}<br>${esc(M.zlabel)}=%{z:.5g}<extra></extra>`,
+    }], {
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { family: cssVar('--font'), color: ink, size: 12 },
+      margin: { l: 60, r: 10, t: 12, b: 48 }, xaxis: ax(shown.xl), yaxis: ax(shown.yl), dragmode: 'pan', uirevision: v.swapped ? 's' : 'n',
+      hoverlabel: { font: { family: cssVar('--mono') } },
+    }, { responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset' });
+  }
+  const resetView = () => { v.zoomed = false; Plotly.relayout(el, { 'xaxis.autorange': true, 'yaxis.autorange': true }); };
+  render(true);
+  bindTouchGestures(el, { active: () => true, reset: resetView, get zoomed() { return v.zoomed; }, set zoomed(x) { v.zoomed = x; } });
+  q('mvReset').onclick = resetView;
+  q('mvSwap').onclick = () => { v.swapped = !v.swapped; v.zoomed = false; render(true); };
+
+  // --- colour controls
+  const num = t => { const n = Number(String(t).trim()); return Number.isFinite(n) ? n : null; };
+  function syncControls() {
+    q('mvLow').value = v.low; q('mvLowT').value = +v.low.toFixed(3);
+    q('mvHigh').value = v.high; q('mvHighT').value = +v.high.toFixed(3);
+    q('mvMidPos').value = v.midPos; q('mvMidPosT').value = +v.midPos.toFixed(4);
+    q('mvVmin').value = +v.vmin.toPrecision(6); q('mvVmax').value = +v.vmax.toPrecision(6);
+    root.querySelector(`input[name=mvMode][value=${v.mode}]`).checked = true;
+    q('mvUseMid').checked = v.useMid;
+    for (const k of ['Low', 'Mid', 'High']) {
+      q('mc_' + k).value = MP.rgbHex(v.colors[k]);
+      q('mcrgb_' + k).value = MP.rgbText(v.colors[k]);
+      q('mchex_' + k).value = MP.rgbHex(v.colors[k]).slice(1).toUpperCase();
+    }
+  }
+  syncControls();
+  const setRange = (low, high) => { if (low === null || high === null || !(low < high) || low < 0 || high > 1) { syncControls(); return; } v.low = low; v.high = high; syncControls(); render(); };
+  q('mvLow').oninput = () => setRange(Number(q('mvLow').value), v.high);
+  q('mvHigh').oninput = () => setRange(v.low, Number(q('mvHigh').value));
+  q('mvLowT').onchange = () => setRange(num(q('mvLowT').value), v.high);
+  q('mvHighT').onchange = () => setRange(v.low, num(q('mvHighT').value));
+  const setV = () => {
+    const a = num(q('mvVmin').value), b = num(q('mvVmax').value);
+    if (a === null || b === null || !(a < b)) { toast('vmin 要小于 vmax'); syncControls(); return; }
+    v.vmin = a; v.vmax = b; render();
+  };
+  q('mvVmin').onchange = setV; q('mvVmax').onchange = setV;
+  q('mvAutoV').onclick = () => {
+    v.vmin = MP.nanPercentile(M.Z, 2); v.vmax = MP.nanPercentile(M.Z, 98);
+    if (!Number.isFinite(v.vmin)) { v.vmin = 0; v.vmax = 1; }
+    syncControls(); render();
+  };
+  root.querySelectorAll('input[name=mvMode]').forEach(r => { r.onchange = () => { v.mode = r.value; render(); }; });
+  q('mvUseMid').onchange = () => { v.useMid = q('mvUseMid').checked; if (v.mode === 'custom') render(); };
+  q('mvTemplate').onchange = () => {
+    v.templateName = q('mvTemplate').value; v.template = MP.lutFromHex(DP_CMAPS[v.templateName]);
+    v.mode = 'template'; fromTemplate(); syncControls(); render();
+  };
+  const useCustom = (k, rgb) => { v.colors[k] = rgb; v.mode = 'custom'; syncControls(); render(); };
+  for (const k of ['Low', 'Mid', 'High']) {
+    q('mc_' + k).oninput = () => useCustom(k, MP.parseColor(q('mc_' + k).value));
+    q('mcrgb_' + k).onchange = () => { const c = MP.parseColor(q('mcrgb_' + k).value); if (c) useCustom(k, c); else { toast('颜色格式：R,G,B（0–255）'); syncControls(); } };
+    q('mchex_' + k).onchange = () => { const c = MP.parseColor('#' + q('mchex_' + k).value.replace(/^#/, '')); if (c) useCustom(k, c); else { toast('十六进制颜色要 6 位，例如 40C0C0'); syncControls(); } };
+  }
+  const setMid = p => { if (p === null || p <= 0 || p >= 1) { syncControls(); return; } v.midPos = p; syncControls(); if (v.mode === 'custom' && v.useMid) render(); };
+  q('mvMidPos').oninput = () => setMid(Number(q('mvMidPos').value));
+  q('mvMidPosT').onchange = () => setMid(num(q('mvMidPosT').value));
+  q('mvMidSet').onclick = () => {
+    const z = num(q('mvMidZ').value);
+    if (z === null) { toast('请填一个 Z 值'); return; }
+    if (v.vmax === v.vmin || v.high <= v.low) return;
+    const pos = v.low + (z - v.vmin) / (v.vmax - v.vmin) * (v.high - v.low);
+    if (!(pos > 0 && pos < 1)) { toast(`Z = ${z} 不在当前色标范围内`); return; }
+    v.midPos = Math.round(pos * 1e4) / 1e4; v.useMid = true; v.mode = 'custom'; syncControls(); render();
+  };
+  q('mvFromTpl').onclick = () => { fromTemplate(); syncControls(); if (v.mode === 'custom') render(); };
+  q('mvLoadPal').onclick = () => q('mvPalFile').click();
+  q('mvPalFile').onchange = async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      v.template = MP.parsePal(new Uint8Array(await file.arrayBuffer()));
+      v.templateName = file.name.replace(/\.[^.]+$/, '');
+      v.mode = 'template'; v.low = 0; v.high = 1; fromTemplate(); syncControls(); render();
+      log(`已载入色标：${file.name}`);
+    } catch (err) { toast(err.message); }
+  };
+  q('mvSavePal').onclick = async () => {
+    const name = `${safeName(v.mode === 'custom' ? 'custom' : v.templateName)}_${v.low.toFixed(2)}_${v.high.toFixed(2)}.pal`;
+    const bytes = MP.exportPal(lut());
+    if (await downloadsP) {
+      // the Claude page only saves common file types, so the palette goes inside a zip
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      const zip = new JSZip(); zip.file(name, bytes);
+      await saveFile(name.replace(/\.pal$/, '.zip'), await zip.generateAsync({ type: 'blob' }));
+    } else await saveFile(name, bytes);
+    log('Origin 色标：放进 <User Files>\\Palettes\\ 文件夹，然后在 Origin 的色标编辑器里选用');
+  };
+
+  // --- export
+  const base = () => `mapping_${safeName(M.zlabel || 'Z')}_${stamp()}`;
+  q('mvXlsx').onclick = async () => {
+    const rows = MP.mappingMatrix(M, v.swapped).map(r => r.map(x => (typeof x === 'number' && !Number.isFinite(x) ? null : x)));
+    await withBusy('正在生成 Excel…', async () => {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Sheet1');
+      await saveFile(base() + '.xlsx', new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]));
+    });
+  };
+  q('mvCsv').onclick = () => {
+    const rows = MP.mappingMatrix(M, v.swapped);
+    saveFile(base() + '.csv', rows.map(r => r.map(x => (typeof x === 'number' && !Number.isFinite(x) ? '' : x)).join(',')).join('\n') + '\n');
+  };
+  const image = async fmt => {
+    const url = await Plotly.toImage(el, { format: fmt, width: Math.max(el.clientWidth, 640), height: Math.max(el.clientHeight, 480), scale: fmt === 'png' ? 3 : 1 });
+    // decode the data: URL here; fetching it can be blocked by the page's security policy
+    const comma = url.indexOf(','), head = url.slice(0, comma), payload = url.slice(comma + 1);
+    let blob;
+    if (head.includes(';base64')) {
+      const bin = atob(payload), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      blob = new Blob([bytes], { type: 'image/png' });
+    } else blob = new Blob([decodeURIComponent(payload)], { type: 'image/svg+xml' });
+    await saveFile(`${base()}.${fmt}`, blob);
+  };
+  q('mvPng').onclick = () => image('png').catch(e => toast('导出图片失败：' + e.message));
+  q('mvSvg').onclick = () => image('svg').catch(e => toast('导出图片失败：' + e.message));
+}
 
 // ------------------------------------------------------------------ autosave (this browser only)
 const DB = 'datapro-web', STORE = 'kv';

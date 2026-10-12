@@ -122,6 +122,33 @@ select.col { width: 150px; }
 
 .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .tools .btn { justify-content: center; }
+.tools .btn.wide { grid-column: 1 / -1; }
+
+/* 2D mapping viewer: full-screen layer; plot stays on top while the colour controls scroll */
+.mapview { position: fixed; inset: 0; z-index: 40; background: var(--bg); overflow: auto; overscroll-behavior: contain;
+  padding: env(safe-area-inset-top, 0px) 0 env(safe-area-inset-bottom, 0px); }
+.mapview .mapbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 16px; }
+.mapview .mapbar h3 { margin: 0 auto 0 0; font-size: 17px; font-weight: 600; }
+.mapview .mapplot { position: sticky; top: 0; z-index: 1; background: var(--bg); padding: 0 16px 6px; }
+.mapview #mapPlot { height: 52vh; min-height: 280px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; touch-action: none; }
+@media (min-width: 900px) { .mapview #mapPlot { height: 62vh; } }
+.mapview .mapctl { padding: 4px 16px 24px; display: grid; gap: 12px; max-width: 900px; }
+.mapview .ctlcard { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 10px; min-width: 0; }
+.mapview .ctlcard h4 { margin: 0; font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.mapview .rangerow { display: grid; grid-template-columns: 2.6em minmax(0, 1fr) 4.6em; gap: 8px; align-items: center; font-size: 14px; }
+.mapview .rangerow input[type=range] { width: 100%; accent-color: var(--accent); }
+.mapview .preview { height: 16px; border-radius: 4px; border: 1px solid var(--line); }
+.mapview .colorrow { display: grid; grid-template-columns: 2.6em 44px minmax(0, 1fr) minmax(0, 1fr); gap: 8px; align-items: center; font-size: 14px; }
+.mapview .colorrow input[type=color] { width: 44px; height: 36px; padding: 0; border: 1px solid var(--line); border-radius: 7px; background: none; }
+.mapview .inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 14px; }
+.mapview .inline input[type=text] { width: 7.5em; }
+.sheet textarea { width: 100%; min-height: 70px; border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px; background: var(--panel); font: 13px var(--mono); }
+.sheet .grid2 select { width: 100%; }
+.sheet details { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+.sheet details summary { cursor: pointer; font-size: 14px; font-weight: 500; }
+.sheet details[open] summary { margin-bottom: 8px; }
+.sheet .chkline { display: flex; align-items: center; gap: 8px; font-size: 14px; padding: 4px 0; }
+.sheet .chkline input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 .status { font-size: 13px; color: var(--muted); padding: 8px 2px 0; display: flex; gap: 8px; align-items: baseline; }
 .status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; transform: translateY(-1px); }
@@ -193,6 +220,7 @@ select.col { width: 150px; }
           <button class="btn" id="btnMerge" type="button">合并 sweep</button>
           <button class="btn" id="btnReset" type="button">还原数据</button>
           <button class="btn" id="btnCopy" type="button">复制 X/Y</button>
+          <button class="btn wide" id="btnMap" type="button">2D mapping</button>
         </div>
       </section>
 
@@ -228,7 +256,11 @@ select.col { width: 150px; }
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
-<script>
+<script id="src-delaunator">/* delaunator 5.0.1 | ISC License | Copyright (c) 2021, Mapbox | https://github.com/mapbox/delaunator */
+!function(t,i){"object"==typeof exports&&"undefined"!=typeof module?module.exports=i():"function"==typeof define&&define.amd?define(i):(t="undefined"!=typeof globalThis?globalThis:t||self).Delaunator=i()}(this,(function(){"use strict";const t=11102230246251565e-32,i=134217729,s=(3+8*t)*t;function e(t,i,s,e,n){let h,r,l,o,a=i[0],f=e[0],c=0,u=0;f>a==f>-a?(h=a,a=i[++c]):(h=f,f=e[++u]);let _=0;if(c<t&&u<s)for(f>a==f>-a?(r=a+h,l=h-(r-a),a=i[++c]):(r=f+h,l=h-(r-f),f=e[++u]),h=r,0!==l&&(n[_++]=l);c<t&&u<s;)f>a==f>-a?(r=h+a,o=r-h,l=h-(r-o)+(a-o),a=i[++c]):(r=h+f,o=r-h,l=h-(r-o)+(f-o),f=e[++u]),h=r,0!==l&&(n[_++]=l);for(;c<t;)r=h+a,o=r-h,l=h-(r-o)+(a-o),a=i[++c],h=r,0!==l&&(n[_++]=l);for(;u<s;)r=h+f,o=r-h,l=h-(r-o)+(f-o),f=e[++u],h=r,0!==l&&(n[_++]=l);return 0===h&&0!==_||(n[_++]=h),_}function n(t){return new Float64Array(t)}const h=22204460492503146e-32,r=11093356479670487e-47,l=n(4),o=n(8),a=n(12),f=n(16),c=n(4);function u(t,n,u,_,d,g){const y=(n-g)*(u-d),w=(t-d)*(_-g),b=y-w,A=Math.abs(y+w);return Math.abs(b)>=33306690738754716e-32*A?b:-function(t,n,u,_,d,g,y){let w,b,A,k,M,p,x,S,T,z,U,m,K,L,v,F,P,E;const H=t-d,I=u-d,N=n-g,j=_-g;L=H*j,p=i*H,x=p-(p-H),S=H-x,p=i*j,T=p-(p-j),z=j-T,v=S*z-(L-x*T-S*T-x*z),F=N*I,p=i*N,x=p-(p-N),S=N-x,p=i*I,T=p-(p-I),z=I-T,P=S*z-(F-x*T-S*T-x*z),U=v-P,M=v-U,l[0]=v-(U+M)+(M-P),m=L+U,M=m-L,K=L-(m-M)+(U-M),U=K-F,M=K-U,l[1]=K-(U+M)+(M-F),E=m+U,M=E-m,l[2]=m-(E-M)+(U-M),l[3]=E;let q=function(t,i){let s=i[0];for(let e=1;e<t;e++)s+=i[e];return s}(4,l),D=h*y;if(q>=D||-q>=D)return q;if(M=t-H,w=t-(H+M)+(M-d),M=u-I,A=u-(I+M)+(M-d),M=n-N,b=n-(N+M)+(M-g),M=_-j,k=_-(j+M)+(M-g),0===w&&0===b&&0===A&&0===k)return q;if(D=r*y+s*Math.abs(q),q+=H*k+j*w-(N*A+I*b),q>=D||-q>=D)return q;L=w*j,p=i*w,x=p-(p-w),S=w-x,p=i*j,T=p-(p-j),z=j-T,v=S*z-(L-x*T-S*T-x*z),F=b*I,p=i*b,x=p-(p-b),S=b-x,p=i*I,T=p-(p-I),z=I-T,P=S*z-(F-x*T-S*T-x*z),U=v-P,M=v-U,c[0]=v-(U+M)+(M-P),m=L+U,M=m-L,K=L-(m-M)+(U-M),U=K-F,M=K-U,c[1]=K-(U+M)+(M-F),E=m+U,M=E-m,c[2]=m-(E-M)+(U-M),c[3]=E;const B=e(4,l,4,c,o);L=H*k,p=i*H,x=p-(p-H),S=H-x,p=i*k,T=p-(p-k),z=k-T,v=S*z-(L-x*T-S*T-x*z),F=N*A,p=i*N,x=p-(p-N),S=N-x,p=i*A,T=p-(p-A),z=A-T,P=S*z-(F-x*T-S*T-x*z),U=v-P,M=v-U,c[0]=v-(U+M)+(M-P),m=L+U,M=m-L,K=L-(m-M)+(U-M),U=K-F,M=K-U,c[1]=K-(U+M)+(M-F),E=m+U,M=E-m,c[2]=m-(E-M)+(U-M),c[3]=E;const C=e(B,o,4,c,a);L=w*k,p=i*w,x=p-(p-w),S=w-x,p=i*k,T=p-(p-k),z=k-T,v=S*z-(L-x*T-S*T-x*z),F=b*A,p=i*b,x=p-(p-b),S=b-x,p=i*A,T=p-(p-A),z=A-T,P=S*z-(F-x*T-S*T-x*z),U=v-P,M=v-U,c[0]=v-(U+M)+(M-P),m=L+U,M=m-L,K=L-(m-M)+(U-M),U=K-F,M=K-U,c[1]=K-(U+M)+(M-F),E=m+U,M=E-m,c[2]=m-(E-M)+(U-M),c[3]=E;const G=e(C,a,4,c,f);return f[G-1]}(t,n,u,_,d,g,A)}const _=Math.pow(2,-52),d=new Uint32Array(512);class g{static from(t,i=M,s=p){const e=t.length,n=new Float64Array(2*e);for(let h=0;h<e;h++){const e=t[h];n[2*h]=i(e),n[2*h+1]=s(e)}return new g(n)}constructor(t){const i=t.length>>1;if(i>0&&"number"!=typeof t[0])throw new Error("Expected coords to contain numbers.");this.coords=t;const s=Math.max(2*i-5,0);this._triangles=new Uint32Array(3*s),this._halfedges=new Int32Array(3*s),this._hashSize=Math.ceil(Math.sqrt(i)),this._hullPrev=new Uint32Array(i),this._hullNext=new Uint32Array(i),this._hullTri=new Uint32Array(i),this._hullHash=new Int32Array(this._hashSize),this._ids=new Uint32Array(i),this._dists=new Float64Array(i),this.update()}update(){const{coords:t,_hullPrev:i,_hullNext:s,_hullTri:e,_hullHash:n}=this,h=t.length>>1;let r=1/0,l=1/0,o=-1/0,a=-1/0;for(let i=0;i<h;i++){const s=t[2*i],e=t[2*i+1];s<r&&(r=s),e<l&&(l=e),s>o&&(o=s),e>a&&(a=e),this._ids[i]=i}const f=(r+o)/2,c=(l+a)/2;let d,g,w;for(let i=0,s=1/0;i<h;i++){const e=y(f,c,t[2*i],t[2*i+1]);e<s&&(d=i,s=e)}const k=t[2*d],M=t[2*d+1];for(let i=0,s=1/0;i<h;i++){if(i===d)continue;const e=y(k,M,t[2*i],t[2*i+1]);e<s&&e>0&&(g=i,s=e)}let p=t[2*g],x=t[2*g+1],S=1/0;for(let i=0;i<h;i++){if(i===d||i===g)continue;const s=b(k,M,p,x,t[2*i],t[2*i+1]);s<S&&(w=i,S=s)}let T=t[2*w],z=t[2*w+1];if(S===1/0){for(let i=0;i<h;i++)this._dists[i]=t[2*i]-t[0]||t[2*i+1]-t[1];A(this._ids,this._dists,0,h-1);const i=new Uint32Array(h);let s=0;for(let t=0,e=-1/0;t<h;t++){const n=this._ids[t],h=this._dists[n];h>e&&(i[s++]=n,e=h)}return this.hull=i.subarray(0,s),this.triangles=new Uint32Array(0),void(this.halfedges=new Uint32Array(0))}if(u(k,M,p,x,T,z)<0){const t=g,i=p,s=x;g=w,p=T,x=z,w=t,T=i,z=s}const U=function(t,i,s,e,n,h){const r=s-t,l=e-i,o=n-t,a=h-i,f=r*r+l*l,c=o*o+a*a,u=.5/(r*a-l*o);return{x:t+(a*f-l*c)*u,y:i+(r*c-o*f)*u}}(k,M,p,x,T,z);this._cx=U.x,this._cy=U.y;for(let i=0;i<h;i++)this._dists[i]=y(t[2*i],t[2*i+1],U.x,U.y);A(this._ids,this._dists,0,h-1),this._hullStart=d;let m=3;s[d]=i[w]=g,s[g]=i[d]=w,s[w]=i[g]=d,e[d]=0,e[g]=1,e[w]=2,n.fill(-1),n[this._hashKey(k,M)]=d,n[this._hashKey(p,x)]=g,n[this._hashKey(T,z)]=w,this.trianglesLen=0,this._addTriangle(d,g,w,-1,-1,-1);for(let h,r,l=0;l<this._ids.length;l++){const o=this._ids[l],a=t[2*o],f=t[2*o+1];if(l>0&&Math.abs(a-h)<=_&&Math.abs(f-r)<=_)continue;if(h=a,r=f,o===d||o===g||o===w)continue;let c=0;for(let t=0,i=this._hashKey(a,f);t<this._hashSize&&(c=n[(i+t)%this._hashSize],-1===c||c===s[c]);t++);c=i[c];let y,b=c;for(;y=s[b],u(a,f,t[2*b],t[2*b+1],t[2*y],t[2*y+1])>=0;)if(b=y,b===c){b=-1;break}if(-1===b)continue;let A=this._addTriangle(b,o,s[b],-1,-1,e[b]);e[o]=this._legalize(A+2),e[b]=A,m++;let k=s[b];for(;y=s[k],u(a,f,t[2*k],t[2*k+1],t[2*y],t[2*y+1])<0;)A=this._addTriangle(k,o,y,e[o],-1,e[k]),e[o]=this._legalize(A+2),s[k]=k,m--,k=y;if(b===c)for(;y=i[b],u(a,f,t[2*y],t[2*y+1],t[2*b],t[2*b+1])<0;)A=this._addTriangle(y,o,b,-1,e[b],e[y]),this._legalize(A+2),e[y]=A,s[b]=b,m--,b=y;this._hullStart=i[o]=b,s[b]=i[k]=o,s[o]=k,n[this._hashKey(a,f)]=o,n[this._hashKey(t[2*b],t[2*b+1])]=b}this.hull=new Uint32Array(m);for(let t=0,i=this._hullStart;t<m;t++)this.hull[t]=i,i=s[i];this.triangles=this._triangles.subarray(0,this.trianglesLen),this.halfedges=this._halfedges.subarray(0,this.trianglesLen)}_hashKey(t,i){return Math.floor(function(t,i){const s=t/(Math.abs(t)+Math.abs(i));return(i>0?3-s:1+s)/4}(t-this._cx,i-this._cy)*this._hashSize)%this._hashSize}_legalize(t){const{_triangles:i,_halfedges:s,coords:e}=this;let n=0,h=0;for(;;){const r=s[t],l=t-t%3;if(h=l+(t+2)%3,-1===r){if(0===n)break;t=d[--n];continue}const o=r-r%3,a=l+(t+1)%3,f=o+(r+2)%3,c=i[h],u=i[t],_=i[a],g=i[f];if(w(e[2*c],e[2*c+1],e[2*u],e[2*u+1],e[2*_],e[2*_+1],e[2*g],e[2*g+1])){i[t]=g,i[r]=c;const e=s[f];if(-1===e){let i=this._hullStart;do{if(this._hullTri[i]===f){this._hullTri[i]=t;break}i=this._hullPrev[i]}while(i!==this._hullStart)}this._link(t,e),this._link(r,s[h]),this._link(h,f);const l=o+(r+1)%3;n<d.length&&(d[n++]=l)}else{if(0===n)break;t=d[--n]}}return h}_link(t,i){this._halfedges[t]=i,-1!==i&&(this._halfedges[i]=t)}_addTriangle(t,i,s,e,n,h){const r=this.trianglesLen;return this._triangles[r]=t,this._triangles[r+1]=i,this._triangles[r+2]=s,this._link(r,e),this._link(r+1,n),this._link(r+2,h),this.trianglesLen+=3,r}}function y(t,i,s,e){const n=t-s,h=i-e;return n*n+h*h}function w(t,i,s,e,n,h,r,l){const o=t-r,a=i-l,f=s-r,c=e-l,u=n-r,_=h-l,d=f*f+c*c,g=u*u+_*_;return o*(c*g-d*_)-a*(f*g-d*u)+(o*o+a*a)*(f*_-c*u)<0}function b(t,i,s,e,n,h){const r=s-t,l=e-i,o=n-t,a=h-i,f=r*r+l*l,c=o*o+a*a,u=.5/(r*a-l*o),_=(a*f-l*c)*u,d=(r*c-o*f)*u;return _*_+d*d}function A(t,i,s,e){if(e-s<=20)for(let n=s+1;n<=e;n++){const e=t[n],h=i[e];let r=n-1;for(;r>=s&&i[t[r]]>h;)t[r+1]=t[r--];t[r+1]=e}else{let n=s+1,h=e;k(t,s+e>>1,n),i[t[s]]>i[t[e]]&&k(t,s,e),i[t[n]]>i[t[e]]&&k(t,n,e),i[t[s]]>i[t[n]]&&k(t,s,n);const r=t[n],l=i[r];for(;;){do{n++}while(i[t[n]]<l);do{h--}while(i[t[h]]>l);if(h<n)break;k(t,n,h)}t[s+1]=t[h],t[h]=r,e-n+1>=h-s?(A(t,i,n,e),A(t,i,s,h-1)):(A(t,i,s,h-1),A(t,i,n,e))}}function k(t,i,s){const e=t[i];t[i]=t[s],t[s]=e}function M(t){return t[0]}function p(t){return t[1]}return g}));
+
+</script>
+<script id="src-core">
 // DataPro web core: data model, file parsers and processing.
 // Ported from "datapro 20260916.py"; every function mirrors the desktop one named in its comment.
 (function (root) {
@@ -1170,6 +1202,640 @@ select.col { width: 150px; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 </script>
+<script id="src-mapping">
+// DataPro web: 2D transport mapping.
+// Ported from the "2D Transport Mapping" section of "datapro 20261012.py". scipy's griddata
+// (Delaunay + LinearND / Clough-Tocher) is reimplemented here on top of Delaunator.
+(function (root) {
+  'use strict';
+  const DP = root.DP;
+  const finite = Number.isFinite;
+
+  // ---------------------------------------------------------------- small numerics
+  function linspace(a, b, n) {
+    const out = new Float64Array(n);
+    if (n === 1) { out[0] = a; return out; }
+    const step = (b - a) / (n - 1);
+    for (let i = 0; i < n; i++) out[i] = a + i * step;
+    out[n - 1] = b;
+    return out;
+  }
+
+  function nanMinMax(a) {
+    let lo = Infinity, hi = -Infinity;
+    for (const v of a) if (!Number.isNaN(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    return [lo, hi];
+  }
+
+  function median(values) {
+    const a = Float64Array.from(values).sort();
+    const n = a.length;
+    if (!n) return NaN;
+    return n % 2 ? a[(n - 1) >> 1] : (a[n / 2 - 1] + a[n / 2]) / 2;
+  }
+
+  // numpy.nanpercentile with linear interpolation
+  function nanPercentile(a, q) {
+    const v = Float64Array.from(Array.prototype.filter.call(a, finite)).sort();
+    if (!v.length) return NaN;
+    const pos = (v.length - 1) * q / 100, lo = Math.floor(pos), hi = Math.ceil(pos);
+    return v[lo] + (v[hi] - v[lo]) * (pos - lo);
+  }
+
+  function argsortStable(x, idx) {
+    return idx.slice().sort((a, b) => (x[a] - x[b]) || (a - b));
+  }
+
+  // interp1d(kind='linear', bounds_error=False, fill_value=fill) on unsorted input
+  function interpLinear(xIn, yIn, fillLo, fillHi) {
+    const idx = argsortStable(xIn, Array.from(xIn, (_, i) => i));
+    const x = idx.map(i => xIn[i]), y = idx.map(i => yIn[i]);
+    const n = x.length;
+    return v => {
+      if (Number.isNaN(v)) return NaN;
+      if (v < x[0]) return fillLo;
+      if (v > x[n - 1]) return fillHi;
+      return DP.npInterp(v, x, y);
+    };
+  }
+
+  // ---------------------------------------------------------------- per-trace processing
+  // mapping_symmetrize / mapping_anti_symmetrize
+  function mirror(sweep, signal, sign) {
+    const vx = [], vy = [];
+    for (let i = 0; i < sweep.length; i++) if (!Number.isNaN(sweep[i]) && !Number.isNaN(signal[i])) { vx.push(sweep[i]); vy.push(signal[i]); }
+    if (vx.length < 4) return Float64Array.from(signal);
+    const f = interpLinear(vx, vy, NaN, NaN);
+    return Float64Array.from(signal, (s, i) => (s + sign * f(-sweep[i])) / 2);
+  }
+  const mappingSymmetrize = (sweep, signal) => mirror(sweep, signal, 1);
+  const mappingAntiSymmetrize = (sweep, signal) => mirror(sweep, signal, -1);
+
+  // mapping_subtract_background: straight-line fit over the outer 20 % of the sweep range
+  function mappingSubtractBackground(sweep, signal, log) {
+    const valid = i => !Number.isNaN(sweep[i]) && !Number.isNaN(signal[i]);
+    let lo = Infinity, hi = -Infinity;
+    for (let i = 0; i < sweep.length; i++) if (valid(i)) { lo = Math.min(lo, sweep[i]); hi = Math.max(hi, sweep[i]); }
+    const threshold = 0.8 * (hi - lo) + lo;
+    let n = 0, sx = 0, sy = 0;
+    const fx = [], fy = [];
+    for (let i = 0; i < sweep.length; i++) if (valid(i) && Math.abs(sweep[i]) >= threshold) { fx.push(sweep[i]); fy.push(signal[i]); }
+    n = fx.length;
+    if (n < 2) { log && log('背景拟合的点不足，已跳过扣背景'); return Float64Array.from(signal); }
+    for (let i = 0; i < n; i++) { sx += fx[i]; sy += fy[i]; }
+    const mx = sx / n, my = sy / n;
+    let sxx = 0, sxy = 0;
+    for (let i = 0; i < n; i++) { sxx += (fx[i] - mx) ** 2; sxy += (fx[i] - mx) * (fy[i] - my); }
+    const k = sxy / sxx, b = my - k * mx;
+    return Float64Array.from(signal, (s, i) => s - (k * sweep[i] + b));
+  }
+
+  // mapping_align_traces -> {sweep: Float64Array(n), aligned: [Float64Array(n) per trace]}
+  function mappingAlignTraces(sweeps, signals, rangeMode, fillMode, log) {
+    const mins = [], maxs = [], lens = [];
+    for (const sw of sweeps) {
+      const [lo, hi] = nanMinMax(sw);
+      let k = 0;
+      for (const v of sw) if (!Number.isNaN(v)) k++;
+      if (!k) continue;
+      mins.push(lo); maxs.push(hi); lens.push(k);
+    }
+    if (!mins.length) throw new Error('没有有效的扫描数据');
+    let cmin, cmax, n;
+    if (rangeMode === 'union') { cmin = Math.min(...mins); cmax = Math.max(...maxs); n = Math.max(...lens); }
+    else { cmin = Math.max(...mins); cmax = Math.min(...maxs); n = Math.min(...lens); }
+    if (cmin >= cmax) {
+      log && log('各文件的扫描范围没有重叠，改用并集');
+      cmin = Math.min(...mins); cmax = Math.max(...maxs); n = Math.max(...lens);
+    }
+    const sweep = linspace(cmin, cmax, n);
+    const aligned = sweeps.map((sw, j) => {
+      const sg = signals[j], vx = [], vy = [];
+      for (let i = 0; i < sw.length; i++) if (!Number.isNaN(sw[i]) && !Number.isNaN(sg[i])) { vx.push(sw[i]); vy.push(sg[i]); }
+      const out = new Float64Array(n).fill(NaN);
+      if (vx.length < 4) return out;
+      let f;
+      if (rangeMode === 'union' && fillMode === 'boundary') {
+        const ord = argsortStable(vx, vx.map((_, i) => i));
+        f = interpLinear(vx, vy, vy[ord[0]], vy[ord[ord.length - 1]]);
+      } else f = interpLinear(vx, vy, NaN, NaN);
+      for (let i = 0; i < n; i++) out[i] = f(sweep[i]);
+      return out;
+    });
+    return { sweep, aligned };
+  }
+
+  // ---------------------------------------------------------------- griddata
+  // Triangulation plus the per-simplex neighbour table scipy's Delaunay exposes
+  // (neighbour k is the triangle opposite vertex k).
+  function triangulate(px, py) {
+    const n = px.length;
+    const coords = new Float64Array(2 * n);
+    for (let i = 0; i < n; i++) { coords[2 * i] = px[i]; coords[2 * i + 1] = py[i]; }
+    const d = new root.Delaunator(coords);
+    const tri = d.triangles, he = d.halfedges, nt = tri.length / 3;
+    // Points that only differ from a line by rounding still triangulate here, into slivers;
+    // Qhull refuses them ("initial simplex is flat"), and so do we.
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity, area = 0;
+    for (let i = 0; i < n; i++) { x0 = Math.min(x0, px[i]); x1 = Math.max(x1, px[i]); y0 = Math.min(y0, py[i]); y1 = Math.max(y1, py[i]); }
+    for (let t = 0; t < nt; t++) {
+      const a = tri[3 * t], b = tri[3 * t + 1], c = tri[3 * t + 2];
+      area += Math.abs((px[b] - px[a]) * (py[c] - py[a]) - (px[c] - px[a]) * (py[b] - py[a])) / 2;
+    }
+    if (!nt || !(area > 1e-9 * (x1 - x0) * (y1 - y0))) throw new Error('数据点几乎在一条直线上（或太少），无法做二维插值');
+    const nb = new Int32Array(3 * nt);
+    for (let t = 0; t < nt; t++) {
+      // edge 3t+1 (v1->v2) is opposite v0, 3t+2 opposite v1, 3t opposite v2
+      const opp = [3 * t + 1, 3 * t + 2, 3 * t];
+      for (let k = 0; k < 3; k++) { const h = he[opp[k]]; nb[3 * t + k] = h < 0 ? -1 : Math.floor(h / 3); }
+    }
+    return { px, py, tri, nb, nt };
+  }
+
+  function barycentric(T, t, x, y, out) {
+    const a = T.tri[3 * t], b = T.tri[3 * t + 1], c = T.tri[3 * t + 2];
+    const xa = T.px[a], ya = T.py[a], xb = T.px[b], yb = T.py[b], xc = T.px[c], yc = T.py[c];
+    const det = (yb - yc) * (xa - xc) + (xc - xb) * (ya - yc);
+    out[0] = ((yb - yc) * (x - xc) + (xc - xb) * (y - yc)) / det;
+    out[1] = ((yc - ya) * (x - xc) + (xa - xc) * (y - yc)) / det;
+    out[2] = 1 - out[0] - out[1];
+    return out;
+  }
+
+  // scipy.interpolate.interpnd.estimate_gradients_2d_global
+  function estimateGradients(T, z, maxiter = 400, tol = 1e-6) {
+    const n = T.px.length;
+    const nbrs = Array.from({ length: n }, () => new Set());
+    for (let t = 0; t < T.nt; t++) {
+      const a = T.tri[3 * t], b = T.tri[3 * t + 1], c = T.tri[3 * t + 2];
+      nbrs[a].add(b); nbrs[a].add(c); nbrs[b].add(a); nbrs[b].add(c); nbrs[c].add(a); nbrs[c].add(b);
+    }
+    const adj = nbrs.map(s => Int32Array.from([...s].sort((p, q) => p - q)));
+    const gx = new Float64Array(n), gy = new Float64Array(n);
+    for (let it = 0; it < maxiter; it++) {
+      let err = 0;
+      for (let i = 0; i < n; i++) {
+        const nb = adj[i];
+        if (!nb.length) continue;
+        let q0 = 0, q1 = 0, q3 = 0, s0 = 0, s1 = 0;
+        for (const j of nb) {
+          const ex = T.px[j] - T.px[i], ey = T.py[j] - T.py[i];
+          const L = Math.sqrt(ex * ex + ey * ey), L3 = L * L * L;
+          const f1 = z[i], f2 = z[j];
+          const df2 = -ex * gx[j] - ey * gy[j];
+          q0 += 4 * ex * ex / L3; q1 += 4 * ex * ey / L3; q3 += 4 * ey * ey / L3;
+          s0 += (6 * (f1 - f2) - 2 * df2) * ex / L3;
+          s1 += (6 * (f1 - f2) - 2 * df2) * ey / L3;
+        }
+        const det = q0 * q3 - q1 * q1;
+        const r0 = (q3 * s0 - q1 * s1) / det, r1 = (-q1 * s0 + q0 * s1) / det;
+        let change = Math.max(Math.abs(gx[i] + r0), Math.abs(gy[i] + r1));
+        gx[i] = -r0; gy[i] = -r1;
+        change /= Math.max(1, Math.max(Math.abs(r0), Math.abs(r1)));
+        if (change > err) err = change;
+      }
+      if (err < tol) break;
+    }
+    return { gx, gy };
+  }
+
+  // scipy's _clough_tocher_2d_single
+  function cloughTocher(T, G, z, t, b) {
+    const v0 = T.tri[3 * t], v1 = T.tri[3 * t + 1], v2 = T.tri[3 * t + 2];
+    const e12x = T.px[v1] - T.px[v0], e12y = T.py[v1] - T.py[v0];
+    const e23x = T.px[v2] - T.px[v1], e23y = T.py[v2] - T.py[v1];
+    const e31x = T.px[v0] - T.px[v2], e31y = T.py[v0] - T.py[v2];
+    const f1 = z[v0], f2 = z[v1], f3 = z[v2];
+    const df12 = +(G.gx[v0] * e12x + G.gy[v0] * e12y);
+    const df21 = -(G.gx[v1] * e12x + G.gy[v1] * e12y);
+    const df23 = +(G.gx[v1] * e23x + G.gy[v1] * e23y);
+    const df32 = -(G.gx[v2] * e23x + G.gy[v2] * e23y);
+    const df31 = +(G.gx[v2] * e31x + G.gy[v2] * e31y);
+    const df13 = -(G.gx[v0] * e31x + G.gy[v0] * e31y);
+    const c3000 = f1, c2100 = (df12 + 3 * c3000) / 3, c2010 = (df13 + 3 * c3000) / 3;
+    const c0300 = f2, c1200 = (df21 + 3 * c0300) / 3, c0210 = (df23 + 3 * c0300) / 3;
+    const c0030 = f3, c1020 = (df31 + 3 * c0030) / 3, c0120 = (df32 + 3 * c0030) / 3;
+    const c2001 = (c2100 + c2010 + c3000) / 3, c0201 = (c1200 + c0300 + c0210) / 3, c0021 = (c1020 + c0120 + c0030) / 3;
+    // affine-invariant edge-normal directions from the neighbours' centroids
+    const g = [0, 0, 0], c = [0, 0, 0];
+    for (let k = 0; k < 3; k++) {
+      const it = T.nb[3 * t + k];
+      if (it === -1) { g[k] = -0.5; continue; }
+      const a = T.tri[3 * it], bb = T.tri[3 * it + 1], cc = T.tri[3 * it + 2];
+      barycentric(T, t, (T.px[a] + T.px[bb] + T.px[cc]) / 3, (T.py[a] + T.py[bb] + T.py[cc]) / 3, c);
+      if (k === 0) g[k] = (2 * c[2] + c[1] - 1) / (2 - 3 * c[2] - 3 * c[1]);
+      else if (k === 1) g[k] = (2 * c[0] + c[2] - 1) / (2 - 3 * c[0] - 3 * c[2]);
+      else g[k] = (2 * c[1] + c[0] - 1) / (2 - 3 * c[1] - 3 * c[0]);
+    }
+    const c0111 = (g[0] * (-c0300 + 3 * c0210 - 3 * c0120 + c0030) + (-c0300 + 2 * c0210 - c0120 + c0021 + c0201)) / 2;
+    const c1011 = (g[1] * (-c0030 + 3 * c1020 - 3 * c2010 + c3000) + (-c0030 + 2 * c1020 - c2010 + c2001 + c0021)) / 2;
+    const c1101 = (g[2] * (-c3000 + 3 * c2100 - 3 * c1200 + c0300) + (-c3000 + 2 * c2100 - c1200 + c2001 + c0201)) / 2;
+    const c1002 = (c1101 + c1011 + c2001) / 3, c0102 = (c1101 + c0111 + c0201) / 3, c0012 = (c1011 + c0111 + c0021) / 3;
+    const c0003 = (c1002 + c0102 + c0012) / 3;
+    const minval = Math.min(b[0], b[1], b[2]);
+    const b1 = b[0] - minval, b2 = b[1] - minval, b3 = b[2] - minval, b4 = 3 * minval;
+    return (b1 ** 3 * c3000 + 3 * b1 ** 2 * b2 * c2100 + 3 * b1 ** 2 * b3 * c2010 +
+      3 * b1 ** 2 * b4 * c2001 + 3 * b1 * b2 ** 2 * c1200 +
+      6 * b1 * b2 * b4 * c1101 + 3 * b1 * b3 ** 2 * c1020 + 6 * b1 * b3 * b4 * c1011 +
+      3 * b1 * b4 ** 2 * c1002 + b2 ** 3 * c0300 + 3 * b2 ** 2 * b3 * c0210 +
+      3 * b2 ** 2 * b4 * c0201 + 3 * b2 * b3 ** 2 * c0120 + 6 * b2 * b3 * b4 * c0111 +
+      3 * b2 * b4 ** 2 * c0102 + b3 ** 3 * c0030 + 3 * b3 ** 2 * b4 * c0021 +
+      3 * b3 * b4 ** 2 * c0012 + b4 ** 3 * c0003);
+  }
+
+  // scipy.interpolate.griddata((px, py), z, meshgrid(xi, yi), method) -> Float64Array(ny*nx), row = y.
+  // Grid points outside the convex hull stay NaN. method 'cubic' falls back to 'linear' like the desktop code.
+  function griddata(px, py, z, xi, yi, method, log) {
+    const T = triangulate(px, py);
+    let G = null;
+    if (method === 'cubic') {
+      try { G = estimateGradients(T, z); } catch (e) { log && log('三次插值失败，改用线性'); }
+    }
+    const nx = xi.length, ny = yi.length;
+    const out = new Float64Array(nx * ny).fill(NaN);
+    const x0 = xi[0], dx = nx > 1 ? (xi[nx - 1] - xi[0]) / (nx - 1) : 1;
+    const y0 = yi[0], dy = ny > 1 ? (yi[ny - 1] - yi[0]) / (ny - 1) : 1;
+    const eps = 100 * 2.220446049250313e-16, b = [0, 0, 0];
+    for (let t = 0; t < T.nt; t++) {
+      const a = T.tri[3 * t], bb = T.tri[3 * t + 1], c = T.tri[3 * t + 2];
+      const tx0 = Math.min(T.px[a], T.px[bb], T.px[c]), tx1 = Math.max(T.px[a], T.px[bb], T.px[c]);
+      const ty0 = Math.min(T.py[a], T.py[bb], T.py[c]), ty1 = Math.max(T.py[a], T.py[bb], T.py[c]);
+      const i0 = Math.max(0, Math.ceil((tx0 - x0) / dx - 1e-9)), i1 = Math.min(nx - 1, Math.floor((tx1 - x0) / dx + 1e-9));
+      const j0 = Math.max(0, Math.ceil((ty0 - y0) / dy - 1e-9)), j1 = Math.min(ny - 1, Math.floor((ty1 - y0) / dy + 1e-9));
+      for (let j = j0; j <= j1; j++) {
+        const y = yi[j];
+        for (let i = i0; i <= i1; i++) {
+          const k = j * nx + i;
+          if (!Number.isNaN(out[k])) continue;
+          barycentric(T, t, xi[i], y, b);
+          if (b[0] < -eps || b[1] < -eps || b[2] < -eps || b[0] > 1 + eps || b[1] > 1 + eps || b[2] > 1 + eps) continue;
+          out[k] = G ? cloughTocher(T, G, z, t, b) : b[0] * z[a] + b[1] * z[bb] + b[2] * z[c];
+        }
+      }
+    }
+    return out;
+  }
+
+  // ---------------------------------------------------------------- nearest-neighbour mask
+  // Bucketed nearest-neighbour search standing in for scipy's cKDTree.
+  function nnIndex(px, py) {
+    const n = px.length;
+    let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+    for (let i = 0; i < n; i++) { x0 = Math.min(x0, px[i]); x1 = Math.max(x1, px[i]); y0 = Math.min(y0, py[i]); y1 = Math.max(y1, py[i]); }
+    const side = Math.max(1, Math.round(Math.sqrt(n / 2)));
+    const cw = (x1 - x0) / side || 1, ch = (y1 - y0) / side || 1;
+    const cell = (x, y) => [Math.min(side - 1, Math.max(0, Math.floor((x - x0) / cw))), Math.min(side - 1, Math.max(0, Math.floor((y - y0) / ch)))];
+    const buckets = Array.from({ length: side * side }, () => []);
+    for (let i = 0; i < n; i++) { const [cx, cy] = cell(px[i], py[i]); buckets[cy * side + cx].push(i); }
+    // distance from (x, y) to its nearest point, skipping index `skip`
+    return (x, y, skip = -1) => {
+      const [cx, cy] = cell(x, y);
+      let best = Infinity;
+      for (let r = 0; r <= side; r++) {
+        for (let gy = cy - r; gy <= cy + r; gy++) {
+          if (gy < 0 || gy >= side) continue;
+          for (let gx = cx - r; gx <= cx + r; gx++) {
+            if (gx < 0 || gx >= side || (Math.abs(gx - cx) !== r && Math.abs(gy - cy) !== r)) continue;
+            for (const k of buckets[gy * side + gx]) {
+              if (k === skip) continue;
+              const d = Math.hypot(px[k] - x, py[k] - y);
+              if (d < best) best = d;
+            }
+          }
+        }
+        // anything not yet searched lies outside the (2r+1)^2 block of cells around the query
+        const reach = Math.min(x - (x0 + (cx - r) * cw), x0 + (cx + r + 1) * cw - x,
+          y - (y0 + (cy - r) * ch), y0 + (cy + r + 1) * ch - y);
+        if (best <= reach) break;
+      }
+      return best;
+    };
+  }
+
+  // mapping_grid_scattered
+  function mappingGridScattered(xp, yp, zp, nGrid, log) {
+    const xv = [], yv = [], zv = [];
+    for (let i = 0; i < xp.length; i++) if (finite(xp[i]) && finite(yp[i]) && finite(zp[i])) { xv.push(xp[i]); yv.push(yp[i]); zv.push(zp[i]); }
+    if (xv.length < 4) throw new Error('有效数据点不足，无法插值成网格');
+    const [xa, xb] = nanMinMax(xv), [ya, yb] = nanMinMax(yv);
+    const xi = linspace(xa, xb, nGrid), yi = linspace(ya, yb, nGrid);
+    const Z = griddata(xv, yv, zv, xi, yi, 'cubic', log);
+    // blank cells far from any measured point
+    const sx = (xb - xa) > 0 ? xb - xa : 1, sy = (yb - ya) > 0 ? yb - ya : 1;
+    const nxp = xv.map(v => v / sx), nyp = yv.map(v => v / sy);
+    const near = nnIndex(nxp, nyp);
+    const nn = nxp.map((v, i) => near(v, nyp[i], i));
+    const threshold = 2 * median(nn);
+    for (let j = 0; j < nGrid; j++) for (let i = 0; i < nGrid; i++) {
+      if (near(xi[i] / sx, yi[j] / sy) > threshold) Z[j * nGrid + i] = NaN;
+    }
+    return { xi, yi, Z };
+  }
+
+  // mapping_make_2d_grid: aligned[j][i] is file j at sweep point i
+  function mappingMake2dGrid(sweep, params, aligned, nGrid, log) {
+    const xp = [], yp = [], zp = [];
+    params.forEach((pv, j) => sweep.forEach((sv, i) => { const v = aligned[j][i]; if (!Number.isNaN(v)) { xp.push(sv); yp.push(pv); zp.push(v); } }));
+    const [xa, xb] = nanMinMax(sweep), [ya, yb] = nanMinMax(params);
+    const xi = linspace(xa, xb, nGrid), yi = linspace(ya, yb, nGrid);
+    return { xi, yi, Z: griddata(xp, yp, zp, xi, yi, 'cubic', log) };
+  }
+
+  // mapping_calc_sweep_ratio
+  function mappingCalcSweepRatio(xs, ys, log) {
+    const ratios = [];
+    xs.forEach((xa, k) => {
+      const ya = ys[k], vx = [], vy = [];
+      for (let i = 0; i < xa.length; i++) if (finite(xa[i]) && finite(ya[i])) { vx.push(xa[i]); vy.push(ya[i]); }
+      if (vx.length < 2) return;
+      const dx = vx[vx.length - 1] - vx[0];
+      if (Math.abs(dx) < 1e-15) return;
+      ratios.push((vy[vy.length - 1] - vy[0]) / dx);
+    });
+    if (!ratios.length) { log && log('无法计算扫描比例，按 1.0 处理'); return 1; }
+    const r = median(ratios);
+    log && log(`扫描比例 dY/dX = ${+r.toPrecision(6)}（来自 ${ratios.length} 条曲线）`);
+    return r;
+  }
+
+  // mapping_transform_coords: rotate into n (along the sweep) and D (across it), then re-grid
+  function mappingTransformCoords(G, ratio, nGrid, log) {
+    const norm = Math.sqrt(1 + ratio * ratio), nx = G.xi.length;
+    const xv = [], yv = [], zv = [];
+    for (let j = 0; j < G.yi.length; j++) for (let i = 0; i < nx; i++) {
+      const z = G.Z[j * nx + i];
+      if (!finite(z)) continue;
+      const X = G.xi[i], Y = G.yi[j];
+      xv.push((X + ratio * Y) / norm); yv.push((-ratio * X + Y) / norm); zv.push(z);
+    }
+    if (xv.length < 4) { log && log('变换后的有效点不足，无法重新插值'); return G; }
+    const [xa, xb] = nanMinMax(xv), [ya, yb] = nanMinMax(yv);
+    const xi = linspace(xa, xb, nGrid), yi = linspace(ya, yb, nGrid);
+    return { xi, yi, Z: griddata(xv, yv, zv, xi, yi, 'cubic', log) };
+  }
+
+  function fillNaN(arr, mode) {
+    if (mode === 'nan') return;
+    let v = 0;
+    if (mode === 'max' || mode === 'min') {
+      let lo = Infinity, hi = -Infinity;
+      for (const a of arr) if (!Number.isNaN(a)) { if (a < lo) lo = a; if (a > hi) hi = a; }
+      v = mode === 'max' ? hi : lo;
+    }
+    for (let i = 0; i < arr.length; i++) if (Number.isNaN(arr[i])) arr[i] = v;
+  }
+
+  const logAbs = a => Float64Array.from(a, v => { const r = Math.log10(Math.abs(v)); return finite(r) ? r : NaN; });
+
+  // ---------------------------------------------------------------- the generate_map pipeline
+  // files: [{name, cols: {colName: number[]}}]; s: settings as in the desktop dialog.
+  // -> {xi, yi, Z (row = y), nx, ny, vmin, vmax, zlabel, discrete}
+  function computeMapping(files, s, log = () => {}) {
+    const num = c => Float64Array.from(c, DP.toNum);
+    const col = (f, name) => { if (!(name in f.cols)) throw new Error(`${f.name} 里没有“${name}”列`); return num(f.cols[name]); };
+    if (s.xCol === s.zCol) throw new Error('X 列和 Z 列不能相同');
+    const nGrid = Math.max(10, Math.min(2000, Math.round(s.grid) || 600));
+    let G, discrete = false;
+
+    const process = (sw, sg) => {
+      if (s.sym) sg = mappingSymmetrize(sw, sg);
+      else if (s.asym) sg = mappingAntiSymmetrize(sw, sg);
+      if (s.bg) sg = mappingSubtractBackground(sw, sg, log);
+      return sg;
+    };
+
+    if (s.mode === 'dual_gate') {
+      if (s.yColDual === s.xCol || s.yColDual === s.zCol) throw new Error('X、Y、Z 三列必须各不相同');
+      const xs = [], ys = [], zs = [];
+      for (const f of files) {
+        const x = col(f, s.xCol), y = col(f, s.yColDual);
+        xs.push(x); ys.push(y); zs.push(process(x, col(f, s.zCol)));
+      }
+      const cat = arrs => { const out = new Float64Array(arrs.reduce((n, a) => n + a.length, 0)); let o = 0; for (const a of arrs) { out.set(a, o); o += a.length; } return out; };
+      const ax = cat(xs), ay = cat(ys);
+      let az = cat(zs);
+      log(`双栅模式：${files.length} 个文件共 ${ax.length} 个点`);
+      if (s.log) az = logAbs(az);
+      G = mappingGridScattered(ax, ay, az, nGrid, log);
+      if (s.transform) {
+        const ratio = s.transformMode === 'auto' ? mappingCalcSweepRatio(xs, ys, log) : Number(s.transformRatio);
+        if (!finite(ratio)) throw new Error('变换比例要填数字');
+        G = mappingTransformCoords(G, ratio, nGrid, log);
+        log(`已做坐标变换，比例 r = ${+ratio.toPrecision(6)}`);
+      }
+    } else {
+      let params;
+      if (s.ySource === 'manual') {
+        const text = String(s.yManual || '').trim();
+        if (!text) throw new Error('请填写每个文件对应的 Y 值，用逗号分隔');
+        params = text.split(/[,，]/).map(v => Number(v.trim()));
+        if (params.some(v => !finite(v))) throw new Error('Y 值里有不是数字的项');
+        if (params.length !== files.length) throw new Error(`填了 ${params.length} 个 Y 值，但选了 ${files.length} 个文件，数量要一致`);
+      } else {
+        params = files.map(f => {
+          const v = Array.from(col(f, s.yCol)).filter(a => !Number.isNaN(a));
+          if (!v.length) return NaN;
+          switch (s.yAgg) {
+            case 'min': return Math.min(...v);
+            case 'mean': return v.reduce((a, b) => a + b, 0) / v.length;
+            case 'median': return median(v);
+            case 'first': return v[0];
+            default: return Math.max(...v);
+          }
+        });
+      }
+      log(`Y 参数值：${params.map(v => +v.toPrecision(6)).join(', ')}`);
+      const sweeps = files.map(f => col(f, s.xCol));
+      const signals = files.map((f, i) => process(sweeps[i], col(f, s.zCol)));
+      const rm = s.rangeMode;
+      const A = rm === 'union_boundary' ? mappingAlignTraces(sweeps, signals, 'union', 'boundary', log)
+        : rm === 'union_nan' ? mappingAlignTraces(sweeps, signals, 'union', 'nan', log)
+          : mappingAlignTraces(sweeps, signals, 'overlap', 'nan', log);
+      log(`对齐了 ${files.length} 条曲线，${A.sweep.length} 个点，范围 [${A.sweep[0].toFixed(4)}, ${A.sweep[A.sweep.length - 1].toFixed(4)}]`);
+      let data = A.aligned;
+      if (s.log) data = data.map(logAbs);
+      // NaN fill on the aligned traces, before gridding
+      if (s.nanFill !== 'nan') {
+        const all = new Float64Array(data.reduce((n, a) => n + a.length, 0));
+        let o = 0; for (const a of data) { all.set(a, o); o += a.length; }
+        let lo = Infinity, hi = -Infinity;
+        for (const v of all) if (!Number.isNaN(v)) { if (v < lo) lo = v; if (v > hi) hi = v; }
+        const v = s.nanFill === 'zero' ? 0 : s.nanFill === 'max' ? hi : lo;
+        data = data.map(a => Float64Array.from(a, x => (Number.isNaN(x) ? v : x)));
+      }
+      if (s.yInterp === 'discrete') {
+        discrete = true;
+        const nx = A.sweep.length;
+        const Z = new Float64Array(nx * params.length);
+        data.forEach((a, j) => Z.set(a, j * nx));
+        G = { xi: A.sweep, yi: Float64Array.from(params), Z };
+        log('Y 方向不插值：每个参数值一行');
+      } else {
+        G = mappingMake2dGrid(A.sweep, params, data, nGrid, log);
+      }
+      if (s.transform) {
+        if (s.transformMode === 'auto') throw new Error('自动计算比例只能用于双栅模式，请手动填写比例');
+        const ratio = Number(s.transformRatio);
+        if (!finite(ratio)) throw new Error('变换比例要填数字');
+        G = mappingTransformCoords(G, ratio, nGrid, log);
+        discrete = false;
+        log(`已做坐标变换，比例 r = ${+ratio.toPrecision(6)}`);
+      }
+    }
+
+    fillNaN(G.Z, s.nanFill);
+    const parse = t => (String(t ?? '').trim() === '' ? null : Number(t));
+    let vmin = parse(s.vmin), vmax = parse(s.vmax);
+    if (!finite(vmin)) vmin = null;
+    if (!finite(vmax)) vmax = null;
+    const smin = parse(s.sigMin), smax = parse(s.sigMax);
+    if (finite(smin)) vmin = smin;
+    if (finite(smax)) vmax = smax;
+    // show_mapping_window: unset limits come from the 2nd / 98th percentile
+    if (vmin === null) vmin = Number.isNaN(nanPercentile(G.Z, 2)) ? 0 : nanPercentile(G.Z, 2);
+    if (vmax === null) vmax = Number.isNaN(nanPercentile(G.Z, 98)) ? 1 : nanPercentile(G.Z, 98);
+    let zlabel = s.zlabel || '';
+    if (s.log && !zlabel.startsWith('log')) zlabel = `log10(|${zlabel}|)`;
+    return { xi: G.xi, yi: G.yi, Z: G.Z, nx: G.xi.length, ny: G.yi.length, vmin, vmax, zlabel, discrete };
+  }
+
+  // ---------------------------------------------------------------- colormaps
+  // A colormap is 256 [r, g, b] entries in 0..1, like a matplotlib LUT.
+  function lutFromHex(hex) {
+    const out = [];
+    for (let i = 0; i < hex.length; i += 6) out.push([0, 2, 4].map(o => parseInt(hex.substr(i + o, 2), 16) / 255));
+    return out;
+  }
+  // Colormap.__call__ for a float in [0, 1]
+  const sample = (lut, x) => lut[Math.min(lut.length - 1, Math.max(0, Math.floor(x * lut.length)))];
+  // LinearSegmentedColormap.from_list(stops, N=n)
+  function fromStops(stops, n = 256) {
+    const out = [];
+    for (let k = 0; k < n; k++) {
+      const x = n === 1 ? 0 : k / (n - 1);
+      let s = 1;
+      while (s < stops.length - 1 && stops[s][0] < x) s++;
+      const [p0, c0] = stops[s - 1], [p1, c1] = stops[s];
+      const f = p1 > p0 ? Math.min(1, Math.max(0, (x - p0) / (p1 - p0))) : 0;
+      out.push([0, 1, 2].map(i => c0[i] + f * (c1[i] - c0[i])));
+    }
+    return out;
+  }
+  const fromList = (colors, n = 256) => fromStops(colors.map((c, i) => [colors.length === 1 ? 0 : i / (colors.length - 1), c]), n);
+  // _truncate_colormap
+  function truncateLut(lut, low, high, n = 256) {
+    const colors = Array.from(linspace(low, high, n), x => sample(lut, x));
+    return fromList(colors, n);
+  }
+  // _build_custom_colormap
+  function customLut(low, high, mid, midPos) {
+    if (!mid) return fromStops([[0, low], [1, high]]);
+    const p = Math.min(Math.max(midPos, 0.001), 0.999);
+    return fromStops([[0, low], [p, mid], [1, high]]);
+  }
+  // _load_cmap_pal: RIFF .pal, JASC-PAL or plain "R G B" lines
+  function parsePal(bytes) {
+    const u8 = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const dv = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+    const tag = (o, n) => String.fromCharCode(...u8.subarray(o, o + n));
+    let colors = null;
+    if (tag(0, 4) === 'RIFF' && tag(8, 4) === 'PAL ') {
+      let pos = 12;
+      while (pos + 8 <= u8.length) {
+        const size = dv.getUint32(pos + 4, true);
+        if (tag(pos, 4) === 'data') {
+          const count = dv.getUint16(pos + 10, true);
+          colors = [];
+          for (let i = 0; i + 3 < 4 * count; i += 4) colors.push([u8[pos + 12 + i], u8[pos + 13 + i], u8[pos + 14 + i]]);
+          break;
+        }
+        pos += 8 + size + (size & 1);
+      }
+    } else {
+      let lines = new TextDecoder().decode(u8).split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (lines.length && lines[0].toUpperCase() === 'JASC-PAL') lines = lines.slice(3);
+      colors = [];
+      for (const l of lines) {
+        const p = l.replace(/,/g, ' ').split(/\s+/);
+        if (p.length >= 3) { const v = p.slice(0, 3).map(Number); if (v.every(finite)) colors.push(v.map(Math.trunc)); }
+      }
+    }
+    if (!colors || colors.length < 2) throw new Error('文件里没有找到色标颜色');
+    return fromList(colors.map(c => c.map(v => Math.min(1, Math.max(0, v / 255)))), Math.max(256, colors.length));
+  }
+  // _export_cmap_origin_pal: Origin RIFF palette, 256 entries
+  function exportPal(lut, n = 256) {
+    const buf = new ArrayBuffer(24 + 4 * n), dv = new DataView(buf), u8 = new Uint8Array(buf);
+    const put = (o, s) => { for (let i = 0; i < s.length; i++) u8[o + i] = s.charCodeAt(i); };
+    put(0, 'RIFF'); dv.setUint32(4, 24 + 4 * n - 8, true); put(8, 'PAL '); put(12, 'data');
+    dv.setUint32(16, 24 + 4 * n - 20, true); u8[20] = 0; u8[21] = 3; dv.setUint16(22, n, true);
+    for (let i = 0; i < n; i++) {
+      const c = sample(lut, n === 1 ? 0 : i / (n - 1));
+      for (let k = 0; k < 3; k++) u8[24 + 4 * i + k] = Math.floor(c[k] * 255);
+    }
+    return u8;
+  }
+  const plotlyScale = lut => lut.map((c, i) => [i / (lut.length - 1), `rgb(${c.map(v => Math.round(v * 255)).join(',')})`]);
+
+  // _parse_color_text: "R,G,B" (0-255), "#rrggbb" or "rrggbb"
+  function parseColor(text) {
+    const t = String(text || '').trim();
+    const parts = t.replace(/，/g, ',').replace(/;/g, ',').replace(/,/g, ' ').split(/\s+/).filter(Boolean);
+    if (parts.length === 3) {
+      const v = parts.map(Number);
+      if (v.every(finite)) return v.every(a => a >= 0 && a <= 255) ? v.map(a => a / 255) : null;
+    }
+    const m = /^#?([0-9a-f]{6})$/i.exec(t);
+    return m ? [0, 2, 4].map(o => parseInt(m[1].substr(o, 2), 16) / 255) : null;
+  }
+  const rgbHex = c => '#' + c.map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+  const rgbText = c => c.map(v => Math.round(v * 255)).join(',');
+
+  // _sig_round
+  const sigRound = v => (v === 0 || !finite(v) ? v : Number(v.toPrecision(8)));
+
+  // export_data: matrix with Y down the side and X across the top
+  function mappingMatrix(M, swapped) {
+    const { xi, yi, Z, nx, ny } = M;
+    const rows = [], xs = swapped ? yi : xi, ys = swapped ? xi : yi;
+    rows.push(['Y_param', ...Array.from(xs, sigRound)]);
+    for (let r = 0; r < ys.length; r++) {
+      const row = [sigRound(ys[r])];
+      for (let c = 0; c < xs.length; c++) row.push(swapped ? Z[c * nx + r] : Z[r * nx + c]);
+      rows.push(row);
+    }
+    return rows;
+  }
+
+  Object.assign(DP, {
+    mapping: {
+      mappingSymmetrize, mappingAntiSymmetrize, mappingSubtractBackground, mappingAlignTraces,
+      griddata, mappingGridScattered, mappingMake2dGrid, mappingCalcSweepRatio, mappingTransformCoords,
+      computeMapping, nanPercentile,
+      lutFromHex, truncateLut, customLut, parsePal, exportPal, plotlyScale, sample,
+      parseColor, rgbHex, rgbText, mappingMatrix, sigRound,
+    },
+  });
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+// Generated by pages/make_cmaps.py from matplotlib 3.10.6: 256 RGB steps per map, hex.
+globalThis.DP_CMAPS = {
+"RdBu_r": "05306106326407346708366a09386d0a3b700c3d730d3f760e41790f437b10457e114781124984134c87144e8a15508d1752901854931956961a58991b5a9c1c5c9f1d5fa21e61a51f63a82065ab2267ac2369ad246aae266caf276eb02870b12a71b22b73b32c75b42e77b52f79b5307ab6327cb7337eb83480b93681ba3783bb3885bc3a87bd3b88be3c8abe3e8cbf3f8ec0408fc14291c24393c34695c44997c54c99c64f9bc7529dc8569fc959a1ca5ca3cb5fa5cd62a7ce65a9cf68abd06bacd16eaed271b0d375b2d478b4d57bb6d67eb8d781bad884bcd987beda8ac0db8dc2dc90c4dd93c6de96c7df98c8e09bc9e09dcbe1a0cce2a2cde3a5cee3a7d0e4a9d1e5acd2e5aed3e6b1d5e7b3d6e8b6d7e8b8d8e9bbdaeabddbeac0dcebc2ddecc5dfecc7e0edcae1eecce2efcfe4efd1e5f0d2e6f0d4e6f1d5e7f1d7e8f1d8e9f1dae9f2dbeaf2ddebf2deebf2e0ecf3e1edf3e3edf3e4eef4e6eff4e7f0f4e9f0f4eaf1f5ecf2f5edf2f5eff3f5f0f4f6f2f5f6f3f5f6f5f6f7f6f7f7f7f6f6f7f5f4f8f4f2f8f3f0f8f2eff8f1edf9f0ebf9efe9f9eee7f9ede5f9ebe3faeae1fae9dffae8defae7dcfbe6dafbe5d8fbe4d6fbe3d4fce2d2fce0d0fcdfcffcdecdfdddcbfddcc9fddbc7fdd9c4fcd7c2fcd5bffcd3bcfbd0b9fbceb7fbccb4facab1fac8aff9c6acf9c4a9f9c2a7f8bfa4f8bda1f8bb9ef7b99cf7b799f7b596f6b394f6b191f6af8ef5ac8bf5aa89f5a886f4a683f3a481f2a17ff19e7df09c7bef9979ee9677ec9374eb9172ea8e70e98b6ee8896ce6866ae58368e48066e37e64e27b62e17860df765ede735cdd7059dc6e57db6b55da6853d86551d7634fd6604dd55d4cd35a4ad25849d05548cf5246ce4f45cc4c44cb4942c94741c84440c6413ec53e3dc43b3cc2383ac13639bf3338be3036bd2d35bb2a34ba2832b82531b72230b61f2eb41c2db3192cb1182bae172aab162aa81529a51429a213289f12289c1127991027960f27930e26900d268d0c258a0b25870a248409248108237f08237c07227906227605217304217003206d02206a011f67001f",
+"viridis": "44015444025645045745055946075a46085c460a5d460b5e470d60470e6147106347116447136548146748166848176948186a481a6c481b6d481c6e481d6f481f70482071482173482374482475482576482677482878482979472a7a472c7a472d7b472e7c472f7d46307e46327e46337f463480453581453781453882443983443a83443b84433d84433e85423f854240864241864142874144874045884046883f47883f48893e49893e4a893e4c8a3d4d8a3d4e8a3c4f8a3c508b3b518b3b528b3a538b3a548c39558c39568c38588c38598c375a8c375b8d365c8d365d8d355e8d355f8d34608d34618d33628d33638d32648e32658e31668e31678e31688e30698e306a8e2f6b8e2f6c8e2e6d8e2e6e8e2e6f8e2d708e2d718e2c718e2c728e2c738e2b748e2b758e2a768e2a778e2a788e29798e297a8e297b8e287c8e287d8e277e8e277f8e27808e26818e26828e26828e25838e25848e25858e24868e24878e23888e23898e238a8d228b8d228c8d228d8d218e8d218f8d21908d21918c20928c20928c20938c1f948c1f958b1f968b1f978b1f988b1f998a1f9a8a1e9b8a1e9c891e9d891f9e891f9f881fa0881fa1881fa1871fa28720a38620a48621a58521a68522a78522a88423a98324aa8325ab8225ac8226ad8127ad8128ae8029af7f2ab07f2cb17e2db27d2eb37c2fb47c31b57b32b67a34b67935b77937b87838b9773aba763bbb753dbc743fbc7340bd7242be7144bf7046c06f48c16e4ac16d4cc26c4ec36b50c46a52c56954c56856c66758c7655ac8645cc8635ec96260ca6063cb5f65cb5e67cc5c69cd5b6ccd5a6ece5870cf5773d05675d05477d1537ad1517cd2507fd34e81d34d84d44b86d54989d5488bd6468ed64590d74393d74195d84098d83e9bd93c9dd93ba0da39a2da37a5db36a8db34aadc32addc30b0dd2fb2dd2db5de2bb8de29bade28bddf26c0df25c2df23c5e021c8e020cae11fcde11dd0e11cd2e21bd5e21ad8e219dae319dde318dfe318e2e418e5e419e7e419eae51aece51befe51cf1e51df4e61ef6e620f8e621fbe723fde725",
+"plasma": "0d088710078813078916078a19068c1b068d1d068e20068f2206902406912605912805922a05932c05942e05952f059631059733059735049837049938049a3a049a3c049b3e049c3f049c41049d43039e44039e46039f48039f4903a04b03a14c02a14e02a25002a25102a35302a35502a45601a45801a45901a55b01a55c01a65e01a66001a66100a76300a76400a76600a76700a86900a86a00a86c00a86e00a86f00a87100a87201a87401a87501a87701a87801a87a02a87b02a87d03a87e03a88004a88104a78305a78405a78606a68707a68808a68a09a58b0aa58d0ba58e0ca48f0da4910ea3920fa39410a29511a19613a19814a099159f9a169f9c179e9d189d9e199da01a9ca11b9ba21d9aa31e9aa51f99a62098a72197a82296aa2395ab2494ac2694ad2793ae2892b02991b12a90b22b8fb32c8eb42e8db52f8cb6308bb7318ab83289ba3388bb3488bc3587bd3786be3885bf3984c03a83c13b82c23c81c33d80c43e7fc5407ec6417dc7427cc8437bc9447aca457acb4679cc4778cc4977cd4a76ce4b75cf4c74d04d73d14e72d24f71d35171d45270d5536fd5546ed6556dd7566cd8576bd9586ada5a6ada5b69db5c68dc5d67dd5e66de5f65de6164df6263e06363e16462e26561e26660e3685fe4695ee56a5de56b5de66c5ce76e5be76f5ae87059e97158e97257ea7457eb7556eb7655ec7754ed7953ed7a52ee7b51ef7c51ef7e50f07f4ff0804ef1814df1834cf2844bf3854bf3874af48849f48948f58b47f58c46f68d45f68f44f79044f79143f79342f89441f89540f9973ff9983ef99a3efa9b3dfa9c3cfa9e3bfb9f3afba139fba238fca338fca537fca636fca835fca934fdab33fdac33fdae32fdaf31fdb130fdb22ffdb42ffdb52efeb72dfeb82cfeba2cfebb2bfebd2afebe2afec029fdc229fdc328fdc527fdc627fdc827fdca26fdcb26fccd25fcce25fcd025fcd225fbd324fbd524fbd724fad824fada24f9dc24f9dd25f8df25f8e125f7e225f7e425f6e626f6e826f5e926f5eb27f4ed27f3ee27f3f027f2f227f1f426f1f525f0f724f0f921",
+"inferno": "00000401000501010601010802010a02020c02020e03021004031204031405041706041907051b08051d09061f0a07220b07240c08260d08290e092b10092d110a30120a32140b34150b37160b39180c3c190c3e1b0c411c0c431e0c451f0c48210c4a230c4c240c4f260c51280b53290b552b0b572d0b592f0a5b310a5c320a5e340a5f3609613809623909633b09643d09653e0966400a67420a68440a68450a69470b6a490b6a4a0c6b4c0c6b4d0d6c4f0d6c510e6c520e6d540f6d550f6d57106e59106e5a116e5c126e5d126e5f136e61136e62146e64156e65156e67166e69166e6a176e6c186e6d186e6f196e71196e721a6e741a6e751b6e771c6d781c6d7a1d6d7c1d6d7d1e6d7f1e6c801f6c82206c84206b85216b87216b88226a8a226a8c23698d23698f24699025689225689326679526679727669827669a28659b29649d29649f2a63a02a63a22b62a32c61a52c60a62d60a82e5fa92e5eab2f5ead305dae305cb0315bb1325ab3325ab43359b63458b73557b93556ba3655bc3754bd3853bf3952c03a51c13a50c33b4fc43c4ec63d4dc73e4cc83f4bca404acb4149cc4248ce4347cf4446d04545d24644d34743d44842d54a41d74b3fd84c3ed94d3dda4e3cdb503bdd513ade5238df5337e05536e15635e25734e35933e45a31e55c30e65d2fe75e2ee8602de9612bea632aeb6429eb6628ec6726ed6925ee6a24ef6c23ef6e21f06f20f1711ff1731df2741cf3761bf37819f47918f57b17f57d15f67e14f68013f78212f78410f8850ff8870ef8890cf98b0bf98c0af98e09fa9008fa9207fa9407fb9606fb9706fb9906fb9b06fb9d07fc9f07fca108fca309fca50afca60cfca80dfcaa0ffcac11fcae12fcb014fcb216fcb418fbb61afbb81dfbba1ffbbc21fbbe23fac026fac228fac42afac62df9c72ff9c932f9cb35f8cd37f8cf3af7d13df7d340f6d543f6d746f5d949f5db4cf4dd4ff4df53f4e156f3e35af3e55df2e661f2e865f2ea69f1ec6df1ed71f1ef75f1f179f2f27df2f482f3f586f3f68af4f88ef5f992f6fa96f8fb9af9fc9dfafda1fcffa4",
+"magma": "00000401000501010601010802010902020b02020d03030f03031204041405041606051806051a07061c08071e0907200a08220b09240c09260d0a290e0b2b100b2d110c2f120d31130d34140e36150e38160f3b180f3d19103f1a10421c10441d11471e114920114b21114e22115024125325125527125829115a2a115c2c115f2d11612f116331116533106734106936106b38106c390f6e3b0f703d0f713f0f72400f74420f75440f764510774710784910784a10794c117a4e117b4f127b51127c52137c54137d56147d57157e59157e5a167e5c167f5d177f5f187f601880621980641a80651a80671b80681c816a1c816b1d816d1d816e1e81701f81721f817320817521817621817822817922827b23827c23827e24828025828125818326818426818627818827818928818b29818c29818e2a81902a81912b81932b80942c80962c80982d80992d809b2e7f9c2e7f9e2f7fa02f7fa1307ea3307ea5317ea6317da8327daa337dab337cad347cae347bb0357bb2357bb3367ab5367ab73779b83779ba3878bc3978bd3977bf3a77c03a76c23b75c43c75c53c74c73d73c83e73ca3e72cc3f71cd4071cf4070d0416fd2426fd3436ed5446dd6456cd8456cd9466bdb476adc4869de4968df4a68e04c67e24d66e34e65e44f64e55064e75263e85362e95462ea5661eb5760ec5860ed5a5fee5b5eef5d5ef05f5ef1605df2625df2645cf3655cf4675cf4695cf56b5cf66c5cf66e5cf7705cf7725cf8745cf8765cf9785df9795df97b5dfa7d5efa7f5efa815ffb835ffb8560fb8761fc8961fc8a62fc8c63fc8e64fc9065fd9266fd9467fd9668fd9869fd9a6afd9b6bfe9d6cfe9f6dfea16efea36ffea571fea772fea973feaa74feac76feae77feb078feb27afeb47bfeb67cfeb77efeb97ffebb81febd82febf84fec185fec287fec488fec68afec88cfeca8dfecc8ffecd90fecf92fed194fed395fed597fed799fed89afdda9cfddc9efddea0fde0a1fde2a3fde3a5fde5a7fde7a9fde9aafdebacfcecaefceeb0fcf0b2fcf2b4fcf4b6fcf6b8fcf7b9fcf9bbfcfbbdfcfdbf",
+"cividis": "00224e00234f00245100255300255400265600275800285900285b00295d002a5f002a61002b62002c64002c66002d68002e6a002e6c002f6d00306f0030700031700031710132710533710833700c34700f357012357014367016377018376f1a386f1c396f1e3a6f203a6f213b6e233c6e243c6e263d6e273e6e293f6e2a3f6d2b406d2d416d2e416d2f426d31436d32436d33446d34456c35456c36466c38476c39486c3a486c3b496c3c4a6c3d4a6c3e4b6c3f4c6c404c6c414d6c424e6c434e6c444f6c45506c46516c47516c48526c49536c4a536c4b546c4c556c4d556c4e566c4f576c50576c51586d52596d535a6d545a6d555b6d555c6d565c6d575d6d585e6d595e6e5a5f6e5b606e5c616e5d616e5e626e5e636f5f636f60646f61656f62656f636670646770656870656870666970676a71686a71696b716a6c716b6d726c6d726c6e726d6f726e6f736f70737071737172747272747273747374757474757575757676767777767777777878777979777a7a787b7a787c7b787d7c787e7c787e7d787f7e78807f78817f788280798381798482798582798683798784788885788985788a86788b87788c88788d88788e89788f8a78908b78918b78928c78928d78938e78948e77958f779690779791779892779992779a93769b94769c95769d95769e96769f9775a09875a19975a29975a39a74a49b74a59c74a69c74a79d73a89e73a99f73aaa073aba072aca172ada272aea371afa471b0a571b1a570b3a670b4a76fb5a86fb6a96fb7a96eb8aa6eb9ab6dbaac6dbbad6dbcae6cbdae6cbeaf6bbfb06bc0b16ac1b26ac2b369c3b369c4b468c5b568c6b667c7b767c8b866c9b965cbb965ccba64cdbb63cebc63cfbd62d0be62d1bf61d2c060d3c05fd4c15fd5c25ed6c35dd7c45cd9c55cdac65bdbc75adcc859ddc858dec958dfca57e0cb56e1cc55e2cd54e4ce53e5cf52e6d051e7d150e8d24fe9d34eead34cebd44bedd54aeed649efd748f0d846f1d945f2da44f3db42f5dc41f6dd3ff7de3ef8df3cf9e03afbe138fce236fde334fee434fee535fee636fee838",
+"coolwarm": "3b4cc03c4ec23d50c33e51c53f53c64055c84257c94358cb445acc455cce465ecf485fd14961d24a63d34b64d54c66d64e68d84f69d9506bda516ddb536edd5470de5572df5673e05875e15977e35a78e45b7ae55d7ce65e7de75f7fe86180e96282ea6384eb6485ec6687ed6788ee688aef6a8bef6b8df06c8ff16e90f26f92f37093f37295f47396f57597f67699f6779af7799cf87a9df87b9ff97da0f97ea1fa80a3fa81a4fb82a6fb84a7fc85a8fc86a9fc88abfd89acfd8badfd8caffe8db0fe8fb1fe90b2fe92b4fe93b5fe94b6ff96b7ff97b8ff98b9ff9abbff9bbcff9dbdff9ebeff9fbfffa1c0ffa2c1ffa3c2fea5c3fea6c4fea7c5fea9c6fdaac7fdabc8fdadc9fdaec9fcafcafcb1cbfcb2ccfbb3cdfbb5cdfab6cefab7cff9b9d0f9bad0f8bbd1f8bcd2f7bed2f6bfd3f6c0d4f5c1d4f4c3d5f4c4d5f3c5d6f2c6d6f1c7d7f0c9d7f0cad8efcbd8eeccd9edcdd9eccedaebcfdaead1dae9d2dbe8d3dbe7d4dbe6d5dbe5d6dce4d7dce3d8dce2d9dce1dadce0dbdcdedcdddddddcdcdedcdbdfdbd9e0dbd8e1dad6e2dad5e3d9d3e4d9d2e5d8d1e6d7cfe7d7cee8d6cce9d5cbead5c9ead4c8ebd3c6ecd3c5edd2c3edd1c2eed0c0efcfbfefcebdf0cdbbf1cdbaf1ccb8f2cbb7f2cab5f2c9b4f3c8b2f3c7b1f4c6aff4c5adf5c4acf5c2aaf5c1a9f5c0a7f6bfa6f6bea4f6bda2f7bca1f7ba9ff7b99ef7b89cf7b79bf7b599f7b497f7b396f7b194f7b093f7af91f7ad90f7ac8ef7aa8cf7a98bf7a889f7a688f6a586f6a385f6a283f5a081f59f80f59d7ef59c7df49a7bf4987af39778f39577f39475f29274f29072f18f71f18d6ff08b6ef08a6cef886bee8669ee8468ed8366ec8165ec7f63eb7d62ea7b60e97a5fe9785de8765ce7745be67259e57058e46e56e36c55e36b54e26952e16751e0654fdf634ede614ddd5f4bdc5d4ada5a49d95847d85646d75445d65244d55042d44e41d24b40d1493fd0473dcf453ccd423bcc403acb3e38ca3b37c83836c73635c53334c43032c32e31c12b30c0282fbe242ebd1f2dbb1b2cba162bb8122ab70d28b50927b40426",
+"seismic": "00004c00004f00005200005500005800005a00005d00006000006300006600006800006b00006e00007100007400007600007900007c00007f00008200008400008700008a00008d00009000009200009500009800009b00009e0000a00000a30000a60000a90000ac0000ae0000b10000b40000b70000ba0000bc0000bf0000c20000c50000c80000ca0000cd0000d00000d30000d60000d80000db0000de0000e10000e40000e60000e90000ec0000ef0000f20000f40000f70000fa0000fd0101ff0505ff0909ff0d0dff1111ff1515ff1919ff1d1dff2121ff2525ff2929ff2d2dff3131ff3535ff3939ff3d3dff4141ff4545ff4949ff4d4dff5151ff5555ff5959ff5d5dff6161ff6565ff6969ff6d6dff7171ff7575ff7979ff7d7dff8181ff8585ff8989ff8d8dff9191ff9595ff9999ff9d9dffa1a1ffa5a5ffa9a9ffadadffb1b1ffb5b5ffb9b9ffbdbdffc1c1ffc5c5ffc9c9ffcdcdffd1d1ffd5d5ffd9d9ffddddffe1e1ffe5e5ffe9e9ffededfff1f1fff5f5fff9f9fffdfdfffffdfdfff9f9fff5f5fff1f1ffededffe9e9ffe5e5ffe1e1ffddddffd9d9ffd5d5ffd1d1ffcdcdffc9c9ffc5c5ffc1c1ffbdbdffb9b9ffb5b5ffb1b1ffadadffa9a9ffa5a5ffa1a1ff9d9dff9999ff9595ff9191ff8d8dff8989ff8585ff8181ff7d7dff7979ff7575ff7171ff6d6dff6969ff6565ff6161ff5d5dff5959ff5555ff5151ff4d4dff4949ff4545ff4141ff3d3dff3939ff3535ff3131ff2d2dff2929ff2525ff2121ff1d1dff1919ff1515ff1111ff0d0dff0909ff0505ff0101fe0000fc0000fa0000f80000f60000f40000f20000f00000ee0000ec0000ea0000e80000e60000e30000e20000e00000de0000dc0000da0000d80000d60000d30000d20000d00000ce0000cc0000ca0000c80000c60000c30000c20000c00000be0000bc0000ba0000b80000b60000b30000b20000b00000ae0000ac0000aa0000a80000a60000a30000a20000a000009e00009c00009a00009800009600009300009200009000008e00008c00008a0000880000860000840000820000800000",
+"hot": "0b00000d00001000001200001500001800001a00001d00002000002200002500002700002a00002d00002f00003200003500003700003a00003c00003f00004200004400004700004a00004c00004f00005100005400005700005900005c00005f00006100006400006600006900006c00006e00007100007400007600007900007b00007e00008100008300008600008900008b00008e00009000009300009600009800009b00009e0000a00000a30000a50000a80000ab0000ad0000b00000b30000b50000b80000ba0000bd0000c00000c20000c50000c80000ca0000cd0000cf0000d20000d50000d70000da0000dd0000df0000e20000e40000e70000ea0000ec0000ef0000f20000f40000f70000f90000fc0000ff0000ff0200ff0500ff0800ff0a00ff0d00ff1000ff1200ff1500ff1700ff1a00ff1d00ff1f00ff2200ff2500ff2700ff2a00ff2c00ff2f00ff3200ff3400ff3700ff3a00ff3c00ff3f00ff4100ff4400ff4700ff4900ff4c00ff4f00ff5100ff5400ff5600ff5900ff5c00ff5e00ff6100ff6400ff6600ff6900ff6b00ff6e00ff7100ff7300ff7600ff7900ff7b00ff7e00ff8000ff8300ff8600ff8800ff8b00ff8e00ff9000ff9300ff9500ff9800ff9b00ff9d00ffa000ffa200ffa500ffa800ffaa00ffad00ffb000ffb200ffb500ffb700ffba00ffbd00ffbf00ffc200ffc500ffc700ffca00ffcc00ffcf00ffd200ffd400ffd700ffda00ffdc00ffdf00ffe100ffe400ffe700ffe900ffec00ffef00fff100fff400fff600fff900fffc00fffe00ffff03ffff07ffff0bffff0fffff13ffff17ffff1bffff1fffff22ffff26ffff2affff2effff32ffff36ffff3affff3effff42ffff46ffff4affff4effff52ffff56ffff5affff5effff61ffff65ffff69ffff6dffff71ffff75ffff79ffff7dffff81ffff85ffff89ffff8dffff91ffff95ffff99ffff9dffffa0ffffa4ffffa8ffffacffffb0ffffb4ffffb8ffffbcffffc0ffffc4ffffc8ffffccffffd0ffffd4ffffd8ffffdcffffdfffffe3ffffe7ffffebffffeffffff3fffff7fffffbffffff",
+"jet": "00008000008400008900008d00009200009600009b00009f0000a40000a80000ad0000b20000b60000bb0000bf0000c40000c80000cd0000d10000d60000da0000df0000e30000e80000ed0000f10000f60000fa0000ff0000ff0000ff0000ff0000ff0004ff0008ff000cff0010ff0014ff0018ff001cff0020ff0024ff0028ff002cff0030ff0034ff0038ff003cff0040ff0044ff0048ff004cff0050ff0054ff0058ff005cff0060ff0064ff0068ff006cff0070ff0074ff0078ff007cff0080ff0084ff0088ff008cff0090ff0094ff0098ff009cff00a0ff00a4ff00a8ff00acff00b0ff00b4ff00b8ff00bcff00c0ff00c4ff00c8ff00ccff00d0ff00d4ff00d8ff00dcfe00e0fb00e4f802e8f406ecf109f0ee0cf4eb0ff8e713fce416ffe119ffde1cffdb1fffd723ffd426ffd129ffce2cffca30ffc733ffc436ffc139ffbe3cffba40ffb743ffb446ffb149ffad4dffaa50ffa753ffa456ffa05aff9d5dff9a60ff9763ff9466ff906aff8d6dff8a70ff8773ff8377ff807aff7d7dff7a80ff7783ff7387ff708aff6d8dff6a90ff6694ff6397ff609aff5d9dff5aa0ff56a4ff53a7ff50aaff4dadff49b1ff46b4ff43b7ff40baff3cbeff39c1ff36c4ff33c7ff30caff2cceff29d1ff26d4ff23d7ff1fdbff1cdeff19e1ff16e4ff13e7ff0febff0ceeff09f1fc06f4f802f8f500fbf100feed00ffea00ffe600ffe200ffde00ffdb00ffd700ffd300ffd000ffcc00ffc800ffc400ffc100ffbd00ffb900ffb600ffb200ffae00ffab00ffa700ffa300ff9f00ff9c00ff9800ff9400ff9100ff8d00ff8900ff8600ff8200ff7e00ff7a00ff7700ff7300ff6f00ff6c00ff6800ff6400ff6000ff5d00ff5900ff5500ff5200ff4e00ff4a00ff4700ff4300ff3f00ff3b00ff3800ff3400ff3000ff2d00ff2900ff2500ff2200ff1e00ff1a00ff1600ff1300fa0f00f60b00f10800ed0400e80000e40000df0000da0000d60000d10000cd0000c80000c40000bf0000bb0000b60000b20000ad0000a80000a400009f00009b00009600009200008d0000890000840000800000",
+"twilight": "e2d9e2e1d9e2e0d9e2ded9e1ddd9e0dcd9dfdad8dfd8d8ded6d7ddd4d6dcd2d5dbd0d4d9cdd3d8cbd2d7c8d0d6c5cfd5c2ced4bfccd3bccbd1b9c9d0b6c8cfb3c6ceb0c5cdadc3cdaac2cca7c0cba4becaa1bdc99ebbc99cb9c899b8c896b6c793b4c692b3c68eb1c58cafc589adc588acc485a9c482a7c380a5c37fa5c37ca2c27aa0c2789ec2779dc2759ac17398c17196c17195c06e92c06d90c06c8ebf6b8dbf698abf6888be6786be6785be6682bd657fbd647dbc647cbc6379bb6277bb6275ba6172ba6171b9606eb8606cb86069b76067b65f65b55f62b45f60b45f5fb35f5bb25f59b15f57b05e54ae5e52ad5e4fac5e4dab5e4caa5e48a85e46a65e43a55d41a35d3ea15d3ca05d3a9e5c389d5c359a5b32985b30955a2e935a2b9059298e58278b58268a572385562182551f7f531e7c521c79511a754f19724f19704c176b4b166849156447146146145e44135a4212574112563f12513d114e3c114b3a114939114637114436114236114134113e33113c32123a3113393014373014373113373312373412383412383611393811393a113a3b113b3d113c3f123d41123d43123e4612404813414a13424d14434f14445215455415465615465916485c17495f174a61184b64194b67194c691a4d6c1b4e6f1c4e711d4f741e4f761f4f7920507b21507e22507f23508325508526508727508a29508c2a508e2c50902e50922f509431509633509835509a37509c39509e3b50a03d50a03e50a34150a54350a64550a84750a94950ab4b50ac4d51ae5051af5251b15452b25652b35953b55b53b65d54b75f55b86155b96456ba6657bb6958bc6b59bd6e5abe705bbf725dc0755ec1775fc27a61c27c63c37f64c48166c58468c5866ac6876bc68b6ec78e71c89073c89275c99578c9977bca9a7dca9c80cb9f83cca186cca389cda68ccda88fceab92cfad96cfae97d0b29cd1b4a0d1b6a3d2b8a7d3baaad4bdadd5bfb1d6c1b4d7c3b8d8c5bbd8c7bed9c9c2dacbc5dbccc8dccecbdccfcdddd1d1ded3d3dfd4d6dfd5d8e0d6dae0d7dbe1d8dde1d8dfe2d9e0e2d9e1e2d9e2"
+};
+
+</script>
 <script>
 (() => {
 'use strict';
@@ -1404,7 +2070,11 @@ function plot() {
   if (key !== state.plotKey) { state.plotKey = key; state.zoomed = false; }
   Plotly.react(el, traces, layout, { responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset' });
   el.classList.toggle('gesture', state.mode === 'gesture');
-  if (!el._bound) { bindPlotEvents(el); bindTouchGestures(el); }
+  if (!el._bound) {
+    bindPlotEvents(el);
+    bindTouchGestures(el, { active: () => state.mode === 'gesture', reset: resetView,
+      get zoomed() { return state.zoomed; }, set zoomed(v) { state.zoomed = v; } });
+  }
   updatePointUi();
 }
 
@@ -1445,7 +2115,7 @@ function dragModeOf(mode) {
 // ------------------------------------------------------------------ touch gestures (photo-style)
 // one finger pans (with inertia), two fingers pinch around their midpoint, double tap zooms in / back out,
 // single tap shows the nearest value. Ranges are worked in axis coordinates, so log axes behave too.
-function bindTouchGestures(el) {
+function bindTouchGestures(el, ctx) {
   const axes = () => { const L = el._fullLayout; return L && L.xaxis && L.yaxis ? [L.xaxis, L.yaxis] : null; };
   // pixel (relative to el) -> axis coordinate, from a snapshot of the axis
   const snap = ax => ({ r0: ax.range[0], r1: ax.range[1], off: ax._offset, len: ax._length });
@@ -1461,7 +2131,7 @@ function bindTouchGestures(el) {
   }
   function apply(xr, yr) {
     pending = { 'xaxis.range': xr, 'yaxis.range': yr };
-    state.zoomed = true;
+    ctx.zoomed = true;
     // one redraw per frame; the timer covers views where animation frames are paused
     if (!frame) { frame = requestAnimationFrame(flush); timer = setTimeout(flush, 40); }
   }
@@ -1486,7 +2156,7 @@ function bindTouchGestures(el) {
   }
 
   el.addEventListener('touchstart', e => {
-    if (state.mode !== 'gesture' || !axes()) return;
+    if (!ctx.active() || !axes()) return;
     cancelAnimationFrame(inertia); inertia = 0;
     e.preventDefault(); e.stopPropagation();
     const ts = [...e.touches].map(local);
@@ -1496,7 +2166,7 @@ function bindTouchGestures(el) {
   }, { capture: true, passive: false });
 
   el.addEventListener('touchmove', e => {
-    if (state.mode !== 'gesture' || !g) return;
+    if (!ctx.active() || !g) return;
     e.preventDefault(); e.stopPropagation();
     const ts = [...e.touches].map(local);
     if (g.kind === 'pan' && ts.length === 1) {
@@ -1521,7 +2191,7 @@ function bindTouchGestures(el) {
   }, { capture: true, passive: false });
 
   el.addEventListener('touchend', e => {
-    if (state.mode !== 'gesture' || !g) return;
+    if (!ctx.active() || !g) return;
     e.preventDefault(); e.stopPropagation();
     if (e.touches.length === 1) { startPan(local(e.touches[0])); g.moved = true; return; }  // pinch -> pan
     if (e.touches.length) return;
@@ -1554,14 +2224,14 @@ function bindTouchGestures(el) {
     const now = performance.now();
     if (lastTap && now - lastTap.t < 320 && Math.hypot(p.x - lastTap.p.x, p.y - lastTap.p.y) < 30) {
       clearTimeout(tapTimer); lastTap = null;
-      if (state.zoomed) { resetView(); return; }
+      if (ctx.zoomed) { ctx.reset(); return; }
       const [xa, ya] = axes(), sx = snap(xa), sy = snap(ya), k = 1 / 2.5;
       const cx = coord(sx, fracX(sx, p.x)), cy = coord(sy, fracY(sy, p.y));
       const wx = (sx.r1 - sx.r0) * k, wy = (sy.r1 - sy.r0) * k;
       // zoom into the tapped point, keeping it where the finger is
       const x0 = cx - fracX(sx, p.x) * wx, y0 = cy - fracY(sy, p.y) * wy;
       Plotly.relayout(el, { 'xaxis.range': [x0, x0 + wx], 'yaxis.range': [y0, y0 + wy] });
-      state.zoomed = true;
+      ctx.zoomed = true;
       return;
     }
     lastTap = { p, t: now };
@@ -1574,8 +2244,8 @@ function bindTouchGestures(el) {
   }
 
   el.on('plotly_relayout', ev => {
-    if (ev && (ev['xaxis.autorange'] || ev['yaxis.autorange'])) state.zoomed = false;
-    else if (ev && (ev['xaxis.range[0]'] !== undefined || ev['xaxis.range'])) state.zoomed = true;
+    if (ev && (ev['xaxis.autorange'] || ev['yaxis.autorange'])) ctx.zoomed = false;
+    else if (ev && (ev['xaxis.range[0]'] !== undefined || ev['xaxis.range'])) ctx.zoomed = true;
   });
 }
 
@@ -1977,6 +2647,363 @@ async function copyXY() {
   }
 }
 $('#btnCopy').onclick = () => { if (needXY()) copyXY(); };
+
+// ------------------------------------------------------------------ 2D mapping
+// Settings dialog mirrors open_2d_mapping_dialog; the result window mirrors show_mapping_window.
+const MAPPING_DEFAULTS = {
+  mode: 'single_param', ySource: 'from_column', yManual: '', yAgg: 'max', sym: false, asym: false, bg: false, log: false,
+  sigMin: '', sigMax: '', rangeMode: 'overlap', nanFill: 'nan', transform: false, transformMode: 'auto', transformRatio: '1.0',
+  grid: 600, yInterp: 'smooth', cmap: 'RdBu_r', vmin: '', vmax: '',
+};
+const CMAP_NAMES = Object.keys(window.DP_CMAPS || {});
+
+async function loadMapSettings() {
+  try { return JSON.parse((await kv('get', 'mapset')) || '{}'); } catch (e) { return {}; }
+}
+
+$('#btnMap').onclick = async () => {
+  const files = selectedFiles();
+  if (files.length < 2) { toast('2D mapping 至少要选 2 个文件'); return; }
+  const cols = columnsOf(files);
+  const saved = await loadMapSettings();
+  const S = { ...MAPPING_DEFAULTS, ...saved };
+  const pick = (key, fallback) => (cols.includes(S[key]) ? S[key] : fallback);
+  S.xCol = pick('xCol', cols[0]);
+  S.zCol = pick('zCol', cols[1] || cols[0]);
+  S.yColDual = pick('yColDual', cols[2] || cols[0]);
+  S.yCol = pick('yCol', cols[0]);
+  // axis titles start as the column names until the user sets their own
+  if (saved.xlabel === undefined) S.xlabel = S.xCol;
+  if (saved.ylabel === undefined) S.ylabel = S.mode === 'dual_gate' ? S.yColDual : S.yCol;
+  if (saved.zlabel === undefined) S.zlabel = S.zCol;
+  const opts = (v) => cols.map(c => `<option value="${esc(c)}"${c === v ? ' selected' : ''}>${esc(c)}</option>`).join('');
+  const chk = (name, label) => `<label class="chkline"><input type="checkbox" name="${name}" id="map_${name}"${S[name] ? ' checked' : ''}>${label}</label>`;
+  const txt = (name, label, extra = '') => `<label>${label}<input type="text" name="${name}" id="map_${name}" value="${esc(S[name] ?? '')}" autocomplete="off" ${extra}></label>`;
+  const body = `
+    <fieldset><legend>模式</legend>${radios('mode', [['single_param', '单参数（每个文件一个 Y 值）'], ['dual_gate', '双栅 / 散点（每个文件都有 X、Y、Z 列）']], S.mode)}</fieldset>
+    <fieldset><legend>列</legend><div class="grid2">
+      <label>X 列（扫描量）<select name="xCol" id="map_xCol">${opts(S.xCol)}</select></label>
+      <label>Z 列（信号）<select name="zCol" id="map_zCol">${opts(S.zCol)}</select></label>
+      <label data-dual>Y 列（第二个栅压）<select name="yColDual" id="map_yColDual">${opts(S.yColDual)}</select></label></div></fieldset>
+    <fieldset data-single><legend>Y 轴参数值</legend>
+      ${radios('ySource', [['from_column', '从某一列提取'], ['manual', '手动填写（逗号分隔，按下面的文件顺序）']], S.ySource)}
+      <div class="grid2">
+        <label>列<select name="yCol" id="map_yCol">${opts(S.yCol)}</select></label>
+        <label>取值方式<select name="yAgg" id="map_yAgg">${[['max', '最大值'], ['min', '最小值'], ['mean', '平均值'], ['median', '中位数'], ['first', '第一个点']].map(([v, l]) => `<option value="${v}"${v === S.yAgg ? ' selected' : ''}>${l}</option>`).join('')}</select></label></div>
+      <textarea name="yManual" id="map_yManual" placeholder="例如 -4, -3.8, -3.6 …">${esc(S.yManual)}</textarea>
+      <div class="list">${files.map((f, i) => `<div>${i + 1}. ${esc(f)}</div>`).join('')}</div></fieldset>
+    <details><summary>处理选项</summary>
+      ${chk('sym', '对称化 R(x) = [R(x)+R(−x)]/2')}${chk('asym', '反对称化 R(x) = [R(x)−R(−x)]/2')}
+      ${chk('bg', '扣除线性背景')}${chk('log', '对数：log10(|Z|)')}
+      <fieldset style="margin-top:8px"><legend>信号范围（色标上下限，留空 = 不限）</legend><div class="grid2">${txt('sigMin', '最小', 'inputmode="decimal"')}${txt('sigMax', '最大', 'inputmode="decimal"')}</div></fieldset>
+      <fieldset data-single><legend>各文件扫描范围不同时</legend>${radios('rangeMode', [['overlap', '只用重叠部分（交集）'], ['union_boundary', '全范围，范围外用边界值延伸'], ['union_nan', '全范围，范围外留空']], S.rangeMode)}</fieldset>
+      <fieldset><legend>空值填充</legend>${radios('nanFill', [['nan', '留空'], ['zero', '填 0'], ['max', '填信号最大值'], ['min', '填信号最小值']], S.nanFill)}</fieldset>
+    </details>
+    <details><summary>坐标变换</summary>
+      ${chk('transform', '做坐标变换')}
+      <p class="note">n = (X + r·Y)/√(1+r²)，D = (−r·X + Y)/√(1+r²)，r = 扫描比例 dY/dX，n ⊥ D</p>
+      <fieldset>${radios('transformMode', [['auto', '自动从数据计算 r（仅双栅模式）'], ['manual', '手动填 r']], S.transformMode)}
+        <div class="grid2">${txt('transformRatio', 'r =', 'inputmode="decimal"')}</div></fieldset>
+    </details>
+    <details><summary>出图选项</summary>
+      <fieldset data-single><legend>Y 方向</legend>${radios('yInterp', [['smooth', '插值成平滑网格'], ['discrete', '不插值，每个参数值一行']], S.yInterp)}</fieldset>
+      <div class="grid2" style="margin-bottom:10px">
+        <label>网格分辨率<input type="number" name="grid" id="map_grid" value="${esc(S.grid)}" min="50" max="2000" step="50" inputmode="numeric"></label>
+        <label>色标<select name="cmap" id="map_cmap">${CMAP_NAMES.map(n => `<option${n === S.cmap ? ' selected' : ''}>${n}</option>`).join('')}</select></label>
+        ${txt('xlabel', 'X 轴标题')}${txt('ylabel', 'Y 轴标题')}${txt('zlabel', '色标标题')}<span></span>
+        ${txt('vmin', 'vmin（留空自动）', 'inputmode="decimal"')}${txt('vmax', 'vmax（留空自动）', 'inputmode="decimal"')}
+      </div>
+    </details>`;
+  const r = await sheet('2D mapping', `${files.length} 个文件`, body,
+    [{ label: '取消', value: null }, { label: '生成', value: 'ok', primary: true }],
+    scrim => {
+      const form = scrim.querySelector('form');
+      const sync = () => {
+        const dual = form.elements.mode.value === 'dual_gate';
+        form.querySelectorAll('[data-dual]').forEach(e => { e.hidden = !dual; });
+        form.querySelectorAll('[data-single]').forEach(e => { e.hidden = dual; });
+      };
+      form.addEventListener('change', sync);
+      sync();
+    });
+  if (!r) return;
+  const f = r.form, v = n => f.elements[n].value, c = n => f.elements[n].checked;
+  const s = {
+    mode: v('mode'), xCol: v('xCol'), zCol: v('zCol'), yColDual: v('yColDual'), ySource: v('ySource'), yManual: v('yManual'),
+    yCol: v('yCol'), yAgg: v('yAgg'), sym: c('sym'), asym: c('asym'), bg: c('bg'), log: c('log'), sigMin: v('sigMin'), sigMax: v('sigMax'),
+    rangeMode: v('rangeMode'), nanFill: v('nanFill'), transform: c('transform'), transformMode: v('transformMode'),
+    transformRatio: v('transformRatio'), grid: Number(v('grid')) || 600, yInterp: v('yInterp'), cmap: v('cmap'),
+    xlabel: v('xlabel'), ylabel: v('ylabel'), zlabel: v('zlabel'), vmin: v('vmin'), vmax: v('vmax'),
+  };
+  try { await kv('put', 'mapset', JSON.stringify(s)); } catch (e) { /* keep going without remembering */ }
+  // only the columns the computation reads go to the worker
+  const need = [...new Set([s.xCol, s.zCol, s.mode === 'dual_gate' ? s.yColDual : (s.ySource === 'from_column' ? s.yCol : null)].filter(Boolean))];
+  const payload = files.map(name => {
+    const t = fm.current(name), cols = {};
+    for (const cn of need) if (t.columns.includes(cn)) cols[cn] = Float64Array.from(t.data[cn], DP.toNum);
+    return { name, cols };
+  });
+  let out;
+  try {
+    out = await withBusy(`正在生成 mapping（${files.length} 个文件）…`, () => runMapping(payload, s));
+  } catch (e) {
+    (e.logs || []).forEach(m => log(m));
+    log(`2D mapping 失败：${e.message}`, true);
+    toast('生成失败，详见记录');
+    return;
+  }
+  out.logs.forEach(m => log(m));
+  log(`2D mapping 完成：${out.result.nx} × ${out.result.ny}`);
+  openMapView(out.result, s);
+};
+
+const WORKER_MAIN = `
+self.onmessage = e => {
+  const { id, files, settings } = e.data, logs = [];
+  try {
+    const r = DP.mapping.computeMapping(files, settings, m => logs.push(m));
+    self.postMessage({ id, ok: true, result: r, logs }, [r.Z.buffer]);
+  } catch (err) { self.postMessage({ id, ok: false, error: String((err && err.message) || err), logs }); }
+};`;
+let mapWorker = null, mapJob = 0;
+function computeHere(files, s) {
+  const logs = [];
+  return { result: DP.mapping.computeMapping(files, s, m => logs.push(m)), logs };
+}
+function runMapping(files, s) {
+  if (!mapWorker) {
+    try {
+      const src = ['src-delaunator', 'src-core', 'src-mapping'].map(id => document.getElementById(id).textContent).join('\n;\n') + WORKER_MAIN;
+      mapWorker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    } catch (e) { mapWorker = false; }
+  }
+  if (!mapWorker) return new Promise(res => setTimeout(res, 30)).then(() => computeHere(files, s));
+  return new Promise((resolve, reject) => {
+    const id = ++mapJob, w = mapWorker;
+    const done = () => { w.removeEventListener('message', onMsg); w.removeEventListener('error', onErr); };
+    const onMsg = e => {
+      if (e.data.id !== id) return;
+      done();
+      if (e.data.ok) resolve(e.data);
+      else reject(Object.assign(new Error(e.data.error), { logs: e.data.logs }));
+    };
+    // a worker that cannot start (blocked by the page's security policy) -> compute on the page instead
+    const onErr = () => { done(); mapWorker = false; try { resolve(computeHere(files, s)); } catch (err) { reject(err); } };
+    w.addEventListener('message', onMsg);
+    w.addEventListener('error', onErr);
+    w.postMessage({ id, files, settings: s });
+  });
+}
+
+function openMapView(M, s) {
+  const MP = DP.mapping;
+  const v = {
+    swapped: false, templateName: s.cmap, template: MP.lutFromHex(DP_CMAPS[s.cmap] || DP_CMAPS.RdBu_r),
+    mode: 'template', low: 0, high: 1, useMid: true, midPos: 0.5, colors: {},
+    vmin: M.vmin, vmax: M.vmax, zoomed: false,
+  };
+  const fromTemplate = () => {
+    v.colors.Low = MP.sample(v.template, v.low);
+    v.colors.Mid = MP.sample(v.template, 0.5 * (v.low + v.high));
+    v.colors.High = MP.sample(v.template, v.high);
+  };
+  fromTemplate();
+  const lut = () => {
+    const base = v.mode === 'custom' ? MP.customLut(v.colors.Low, v.colors.High, v.useMid ? v.colors.Mid : null, v.midPos) : v.template;
+    return MP.truncateLut(base, v.low, v.high);
+  };
+
+  const root = document.createElement('div');
+  root.className = 'mapview';
+  root.setAttribute('role', 'dialog');
+  root.setAttribute('aria-label', '2D mapping');
+  const colorRow = k => `<div class="colorrow" data-key="${k}"><span>${{ Low: '低', Mid: '中', High: '高' }[k]}</span>
+    <input type="color" id="mc_${k}" aria-label="${k} 颜色"><input type="text" id="mcrgb_${k}" aria-label="${k} RGB" placeholder="R,G,B">
+    <input type="text" id="mchex_${k}" aria-label="${k} 十六进制" placeholder="#RRGGBB"></div>`;
+  root.innerHTML = `
+    <div class="mapbar"><h3>2D mapping</h3>
+      <button class="btn small" type="button" id="mvSwap">交换 X/Y</button>
+      <button class="btn small" type="button" id="mvReset">复位视图</button>
+      <button class="btn small" type="button" id="mvClose">关闭</button></div>
+    <div class="mapplot"><div id="mapPlot"></div></div>
+    <div class="mapctl">
+      <div class="ctlcard"><h4>色标范围</h4>
+        <div class="rangerow"><span>低</span><input type="range" id="mvLow" min="0" max="1" step="0.01"><input type="text" id="mvLowT" inputmode="decimal" aria-label="低端"></div>
+        <div class="rangerow"><span>高</span><input type="range" id="mvHigh" min="0" max="1" step="0.01"><input type="text" id="mvHighT" inputmode="decimal" aria-label="高端"></div>
+        <div class="preview" id="mvPreview"></div>
+        <div class="inline">vmin <input type="text" id="mvVmin" inputmode="decimal"> vmax <input type="text" id="mvVmax" inputmode="decimal">
+          <button class="btn small" type="button" id="mvAutoV">自动（2%–98%）</button></div></div>
+      <div class="ctlcard"><h4>颜色</h4>
+        <div class="inline"><label class="chk"><input type="radio" name="mvMode" value="template" checked> 模板</label>
+          <select id="mvTemplate">${CMAP_NAMES.map(n => `<option${n === s.cmap ? ' selected' : ''}>${n}</option>`).join('')}</select>
+          <label class="chk"><input type="radio" name="mvMode" value="custom"> 自定义</label>
+          <label class="chk"><input type="checkbox" id="mvUseMid" checked> 用中间色</label></div>
+        ${colorRow('Low')}${colorRow('Mid')}${colorRow('High')}
+        <div class="rangerow"><span>中点</span><input type="range" id="mvMidPos" min="0.01" max="0.99" step="0.01"><input type="text" id="mvMidPosT" inputmode="decimal" aria-label="中点位置"></div>
+        <div class="inline">中间色对应 Z = <input type="text" id="mvMidZ" inputmode="decimal"><button class="btn small" type="button" id="mvMidSet">设定</button>
+          <button class="btn small" type="button" id="mvFromTpl">从模板取色</button></div>
+        <div class="inline"><button class="btn small" type="button" id="mvLoadPal">载入 .pal</button>
+          <button class="btn small" type="button" id="mvSavePal">导出色标 .pal（Origin）</button>
+          <input type="file" id="mvPalFile" hidden></div></div>
+      <div class="ctlcard"><h4>导出</h4>
+        <div class="inline"><button class="btn small" type="button" id="mvXlsx">数据 Excel</button>
+          <button class="btn small" type="button" id="mvCsv">数据 CSV</button>
+          <button class="btn small" type="button" id="mvPng">图片 PNG</button>
+          <button class="btn small" type="button" id="mvSvg">图片 SVG</button></div></div>
+    </div>`;
+  document.body.append(root);
+  const prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  const q = id => root.querySelector('#' + id);
+  const el = q('mapPlot');
+  const close = () => { Plotly.purge(el); root.remove(); document.body.style.overflow = prevOverflow; document.removeEventListener('keydown', onKey); };
+  const onKey = e => { if (e.key === 'Escape' && !document.querySelector('.scrim')) close(); };
+  document.addEventListener('keydown', onKey);
+  q('mvClose').onclick = close;
+
+  // matrix as displayed: rows sorted by y (discrete maps keep the file order otherwise), optional swap
+  function display() {
+    const { xi, yi, Z, nx, ny } = M;
+    const order = Array.from(yi, (_, j) => j).sort((a, b) => yi[a] - yi[b]);
+    const ys = order.map(j => yi[j]);
+    const cell = (j, i) => { const z = Z[j * nx + i]; return Number.isNaN(z) ? null : z; };
+    if (!v.swapped) return { x: Array.from(xi), y: ys, z: order.map(j => Array.from({ length: nx }, (_, i) => cell(j, i))), xl: s.xlabel, yl: s.ylabel };
+    return { x: ys, y: Array.from(xi), z: Array.from({ length: nx }, (_, i) => order.map(j => cell(j, i))), xl: s.ylabel, yl: s.xlabel };
+  }
+  let shown = null;
+  function render(full) {
+    const ink = cssVar('--ink'), muted = cssVar('--muted');
+    if (full || !shown) shown = display();
+    const scale = MP.plotlyScale(lut());
+    q('mvPreview').style.background = `linear-gradient(to right, ${scale.filter((_, i) => i % 16 === 0 || i === 255).map(([p, c]) => `${c} ${(p * 100).toFixed(1)}%`).join(',')})`;
+    const ax = t => ({ title: { text: t, font: { size: 13 } }, color: ink, linecolor: muted, mirror: true, ticks: 'outside', tickcolor: muted,
+      showgrid: false, zeroline: false, exponentformat: 'e', automargin: true });
+    Plotly.react(el, [{
+      type: 'heatmap', x: shown.x, y: shown.y, z: shown.z, zmin: v.vmin, zmax: v.vmax, colorscale: scale, zsmooth: false,
+      colorbar: { title: { text: M.zlabel, side: 'right' }, tickfont: { color: ink }, outlinewidth: 0, thickness: 14 },
+      hovertemplate: `${esc(shown.xl)}=%{x:.5g}<br>${esc(shown.yl)}=%{y:.5g}<br>${esc(M.zlabel)}=%{z:.5g}<extra></extra>`,
+    }], {
+      paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { family: cssVar('--font'), color: ink, size: 12 },
+      margin: { l: 60, r: 10, t: 12, b: 48 }, xaxis: ax(shown.xl), yaxis: ax(shown.yl), dragmode: 'pan', uirevision: v.swapped ? 's' : 'n',
+      hoverlabel: { font: { family: cssVar('--mono') } },
+    }, { responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset' });
+  }
+  const resetView = () => { v.zoomed = false; Plotly.relayout(el, { 'xaxis.autorange': true, 'yaxis.autorange': true }); };
+  render(true);
+  bindTouchGestures(el, { active: () => true, reset: resetView, get zoomed() { return v.zoomed; }, set zoomed(x) { v.zoomed = x; } });
+  q('mvReset').onclick = resetView;
+  q('mvSwap').onclick = () => { v.swapped = !v.swapped; v.zoomed = false; render(true); };
+
+  // --- colour controls
+  const num = t => { const n = Number(String(t).trim()); return Number.isFinite(n) ? n : null; };
+  function syncControls() {
+    q('mvLow').value = v.low; q('mvLowT').value = +v.low.toFixed(3);
+    q('mvHigh').value = v.high; q('mvHighT').value = +v.high.toFixed(3);
+    q('mvMidPos').value = v.midPos; q('mvMidPosT').value = +v.midPos.toFixed(4);
+    q('mvVmin').value = +v.vmin.toPrecision(6); q('mvVmax').value = +v.vmax.toPrecision(6);
+    root.querySelector(`input[name=mvMode][value=${v.mode}]`).checked = true;
+    q('mvUseMid').checked = v.useMid;
+    for (const k of ['Low', 'Mid', 'High']) {
+      q('mc_' + k).value = MP.rgbHex(v.colors[k]);
+      q('mcrgb_' + k).value = MP.rgbText(v.colors[k]);
+      q('mchex_' + k).value = MP.rgbHex(v.colors[k]).slice(1).toUpperCase();
+    }
+  }
+  syncControls();
+  const setRange = (low, high) => { if (low === null || high === null || !(low < high) || low < 0 || high > 1) { syncControls(); return; } v.low = low; v.high = high; syncControls(); render(); };
+  q('mvLow').oninput = () => setRange(Number(q('mvLow').value), v.high);
+  q('mvHigh').oninput = () => setRange(v.low, Number(q('mvHigh').value));
+  q('mvLowT').onchange = () => setRange(num(q('mvLowT').value), v.high);
+  q('mvHighT').onchange = () => setRange(v.low, num(q('mvHighT').value));
+  const setV = () => {
+    const a = num(q('mvVmin').value), b = num(q('mvVmax').value);
+    if (a === null || b === null || !(a < b)) { toast('vmin 要小于 vmax'); syncControls(); return; }
+    v.vmin = a; v.vmax = b; render();
+  };
+  q('mvVmin').onchange = setV; q('mvVmax').onchange = setV;
+  q('mvAutoV').onclick = () => {
+    v.vmin = MP.nanPercentile(M.Z, 2); v.vmax = MP.nanPercentile(M.Z, 98);
+    if (!Number.isFinite(v.vmin)) { v.vmin = 0; v.vmax = 1; }
+    syncControls(); render();
+  };
+  root.querySelectorAll('input[name=mvMode]').forEach(r => { r.onchange = () => { v.mode = r.value; render(); }; });
+  q('mvUseMid').onchange = () => { v.useMid = q('mvUseMid').checked; if (v.mode === 'custom') render(); };
+  q('mvTemplate').onchange = () => {
+    v.templateName = q('mvTemplate').value; v.template = MP.lutFromHex(DP_CMAPS[v.templateName]);
+    v.mode = 'template'; fromTemplate(); syncControls(); render();
+  };
+  const useCustom = (k, rgb) => { v.colors[k] = rgb; v.mode = 'custom'; syncControls(); render(); };
+  for (const k of ['Low', 'Mid', 'High']) {
+    q('mc_' + k).oninput = () => useCustom(k, MP.parseColor(q('mc_' + k).value));
+    q('mcrgb_' + k).onchange = () => { const c = MP.parseColor(q('mcrgb_' + k).value); if (c) useCustom(k, c); else { toast('颜色格式：R,G,B（0–255）'); syncControls(); } };
+    q('mchex_' + k).onchange = () => { const c = MP.parseColor('#' + q('mchex_' + k).value.replace(/^#/, '')); if (c) useCustom(k, c); else { toast('十六进制颜色要 6 位，例如 40C0C0'); syncControls(); } };
+  }
+  const setMid = p => { if (p === null || p <= 0 || p >= 1) { syncControls(); return; } v.midPos = p; syncControls(); if (v.mode === 'custom' && v.useMid) render(); };
+  q('mvMidPos').oninput = () => setMid(Number(q('mvMidPos').value));
+  q('mvMidPosT').onchange = () => setMid(num(q('mvMidPosT').value));
+  q('mvMidSet').onclick = () => {
+    const z = num(q('mvMidZ').value);
+    if (z === null) { toast('请填一个 Z 值'); return; }
+    if (v.vmax === v.vmin || v.high <= v.low) return;
+    const pos = v.low + (z - v.vmin) / (v.vmax - v.vmin) * (v.high - v.low);
+    if (!(pos > 0 && pos < 1)) { toast(`Z = ${z} 不在当前色标范围内`); return; }
+    v.midPos = Math.round(pos * 1e4) / 1e4; v.useMid = true; v.mode = 'custom'; syncControls(); render();
+  };
+  q('mvFromTpl').onclick = () => { fromTemplate(); syncControls(); if (v.mode === 'custom') render(); };
+  q('mvLoadPal').onclick = () => q('mvPalFile').click();
+  q('mvPalFile').onchange = async e => {
+    const file = e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try {
+      v.template = MP.parsePal(new Uint8Array(await file.arrayBuffer()));
+      v.templateName = file.name.replace(/\.[^.]+$/, '');
+      v.mode = 'template'; v.low = 0; v.high = 1; fromTemplate(); syncControls(); render();
+      log(`已载入色标：${file.name}`);
+    } catch (err) { toast(err.message); }
+  };
+  q('mvSavePal').onclick = async () => {
+    const name = `${safeName(v.mode === 'custom' ? 'custom' : v.templateName)}_${v.low.toFixed(2)}_${v.high.toFixed(2)}.pal`;
+    const bytes = MP.exportPal(lut());
+    if (await downloadsP) {
+      // the Claude page only saves common file types, so the palette goes inside a zip
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+      const zip = new JSZip(); zip.file(name, bytes);
+      await saveFile(name.replace(/\.pal$/, '.zip'), await zip.generateAsync({ type: 'blob' }));
+    } else await saveFile(name, bytes);
+    log('Origin 色标：放进 <User Files>\\Palettes\\ 文件夹，然后在 Origin 的色标编辑器里选用');
+  };
+
+  // --- export
+  const base = () => `mapping_${safeName(M.zlabel || 'Z')}_${stamp()}`;
+  q('mvXlsx').onclick = async () => {
+    const rows = MP.mappingMatrix(M, v.swapped).map(r => r.map(x => (typeof x === 'number' && !Number.isFinite(x) ? null : x)));
+    await withBusy('正在生成 Excel…', async () => {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'Sheet1');
+      await saveFile(base() + '.xlsx', new Blob([XLSX.write(wb, { type: 'array', bookType: 'xlsx' })]));
+    });
+  };
+  q('mvCsv').onclick = () => {
+    const rows = MP.mappingMatrix(M, v.swapped);
+    saveFile(base() + '.csv', rows.map(r => r.map(x => (typeof x === 'number' && !Number.isFinite(x) ? '' : x)).join(',')).join('\n') + '\n');
+  };
+  const image = async fmt => {
+    const url = await Plotly.toImage(el, { format: fmt, width: Math.max(el.clientWidth, 640), height: Math.max(el.clientHeight, 480), scale: fmt === 'png' ? 3 : 1 });
+    // decode the data: URL here; fetching it can be blocked by the page's security policy
+    const comma = url.indexOf(','), head = url.slice(0, comma), payload = url.slice(comma + 1);
+    let blob;
+    if (head.includes(';base64')) {
+      const bin = atob(payload), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      blob = new Blob([bytes], { type: 'image/png' });
+    } else blob = new Blob([decodeURIComponent(payload)], { type: 'image/svg+xml' });
+    await saveFile(`${base()}.${fmt}`, blob);
+  };
+  q('mvPng').onclick = () => image('png').catch(e => toast('导出图片失败：' + e.message));
+  q('mvSvg').onclick = () => image('svg').catch(e => toast('导出图片失败：' + e.message));
+}
 
 // ------------------------------------------------------------------ autosave (this browser only)
 const DB = 'datapro-web', STORE = 'kv';

@@ -17,9 +17,14 @@ DOCS = HERE / 'docs'
 PAGES = HERE / 'pages'
 
 page = (HERE / 'app.html').read_text(encoding='utf-8')
-core = (HERE / 'core.js').read_text(encoding='utf-8')
-assert '/*__CORE__*/' in page
-built = page.replace('/*__CORE__*/', core)
+INLINE = {'/*__DELAUNATOR__*/': 'vendor/delaunator.min.js', '/*__CORE__*/': 'core.js',
+          '/*__MAPPING__*/': 'mapping.js', '/*__CMAPS__*/': 'cmaps.js'}
+built = page
+for marker, src in INLINE.items():
+    assert marker in built, marker
+    code = (HERE / src).read_text(encoding='utf-8')
+    assert '</script' not in code.lower(), src
+    built = built.replace(marker, code)
 
 # --- artifact
 DIST.mkdir(exist_ok=True)
