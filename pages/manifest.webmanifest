@@ -1,0 +1,16 @@
+{
+  "name": "DataPro",
+  "short_name": "DataPro",
+  "description": "输运数据处理：导入 txt/csv/hk/h5，画图、删点、对称化、拆分与合并 sweep。",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f3f5f6",
+  "theme_color": "#0a6c80",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

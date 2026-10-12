@@ -1,0 +1,1109 @@
+<title>DataPro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: phone = one column (files, plot, tools); tablet/desktop = files+tools rail on the left, plot fills the rest. */
+:root {
+  --bg: #f3f5f6; --panel: #ffffff; --ink: #172026; --muted: #5a6670; --line: #d9dfe3; --soft: #e9eef1;
+  --accent: #0a6c80; --accent-ink: #ffffff; --accent-soft: #d8edf1; --danger: #b42318; --mark: #e8590c;
+  --font: "IBM Plex Sans", -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1316; --panel: #171c20; --ink: #e5eaed; --muted: #94a1aa; --line: #2a3238; --soft: #20272c;
+  --accent: #4db3c9; --accent-ink: #06191e; --accent-soft: #163840; --danger: #f2766b; --mark: #ff8f4d; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1316; --panel: #171c20; --ink: #e5eaed; --muted: #94a1aa; --line: #2a3238; --soft: #20272c;
+  --accent: #4db3c9; --accent-ink: #06191e; --accent-soft: #163840; --danger: #f2766b; --mark: #ff8f4d; color-scheme: dark; }
+
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font); -webkit-text-size-adjust: 100%; }
+button, input, select { font: inherit; color: inherit; }
+.wrap { padding-inline: 16px; padding-block: 12px 24px; max-width: 1500px; margin: 0 auto; }
+
+header.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 4px 12px; }
+.brand { display: flex; align-items: baseline; gap: 8px; margin-right: auto; }
+.brand b { font-weight: 600; font-size: 19px; letter-spacing: .01em; }
+.brand span { color: var(--muted); font-size: 13px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: var(--r); padding: 8px 12px; min-height: 40px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, .seg button:focus-visible, .tree .item:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 500; }
+.btn.danger { color: var(--danger); }
+.btn.small { min-height: 34px; padding: 5px 10px; font-size: 14px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+.layout { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.filescard { order: 1; } .plotcard { order: 2; } .toolscard { order: 3; }
+@media (min-width: 900px) {
+  .layout { grid-template-columns: 340px minmax(0, 1fr); grid-template-rows: auto 1fr; align-items: start; }
+  .filescard { grid-column: 1; grid-row: 1; }
+  .toolscard { grid-column: 1; grid-row: 2; }
+  .plotcard { grid-column: 2; grid-row: 1 / span 2; }
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.card > h2 { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  margin: 0; padding: 10px 12px 0; display: flex; align-items: center; gap: 8px; }
+.card > h2 .count { font-family: var(--mono); letter-spacing: 0; text-transform: none; font-weight: 400; }
+.pad { padding: 10px 12px 12px; }
+/* file tree */
+.tree { max-height: 34vh; overflow: auto; padding: 4px 6px 6px; overscroll-behavior: contain; }
+@media (min-width: 900px) { .tree { max-height: 52vh; } }
+.tree .item { display: flex; align-items: center; gap: 6px; padding: 6px 6px; border-radius: 6px; cursor: pointer; min-height: 38px;
+  user-select: none; -webkit-user-select: none; }
+.tree .item:hover { background: var(--soft); }
+.tree .item.sel { background: var(--accent-soft); }
+.tree .tick { width: 18px; height: 18px; border: 1.5px solid var(--line); border-radius: 5px; flex: none; display: grid; place-items: center; }
+.tree .item.sel .tick { background: var(--accent); border-color: var(--accent); }
+.tree .item.sel .tick::after { content: ""; width: 9px; height: 5px; border: 2px solid var(--accent-ink); border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); }
+.tree .caret { width: 26px; height: 26px; border: 0; background: none; border-radius: 5px; flex: none; display: grid; place-items: center; cursor: pointer; color: var(--muted); padding: 0; }
+.tree .caret svg { width: 14px; height: 14px; transition: transform .15s; }
+.tree .caret.open svg { transform: rotate(90deg); }
+.tree .spacer { width: 26px; flex: none; }
+.tree .name { min-width: 0; flex: 1; overflow: hidden; overflow-wrap: anywhere; line-height: 1.3;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.tree .folder .name { font-weight: 500; }
+.tree .meta { font: 12px var(--mono); color: var(--muted); flex: none; }
+.tree .badge { font-size: 11px; color: var(--mark); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; flex: none; }
+.empty { color: var(--muted); padding: 14px 8px; font-size: 14px; }
+.treebar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px 10px; border-top: 1px solid var(--line); }
+
+/* plot */
+.plotcard { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.plotbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px 0; }
+.field { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.field > span { font-size: 13px; color: var(--muted); }
+select, input[type=text], input[type=number] { background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px;
+  min-height: 36px; max-width: 100%; min-width: 0; }
+select.col { width: 150px; }
+#plot { height: 58vh; min-height: 300px; width: 100%; }
+#plot.gesture { touch-action: none; -webkit-user-select: none; user-select: none; }
+@media (min-width: 900px) { #plot { height: calc(100vh - 210px); min-height: 420px; } }
+.plotfoot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 0 12px 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.seg button { border: 0; background: var(--panel); padding: 6px 10px; min-height: 36px; cursor: pointer; font-size: 14px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.chk { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.chk input { width: 16px; height: 16px; accent-color: var(--accent); }
+.selinfo { font: 13px var(--mono); color: var(--mark); }
+.plotempty { display: grid; place-items: center; height: 100%; color: var(--muted); text-align: center; padding: 20px; }
+
+.tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tools .btn { justify-content: center; }
+
+.status { font-size: 13px; color: var(--muted); padding: 8px 2px 0; display: flex; gap: 8px; align-items: baseline; }
+.status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; transform: translateY(-1px); }
+.status.err .dot { background: var(--danger); }
+.status button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 13px; margin-left: auto; flex: none; }
+.log { font: 12px/1.5 var(--mono); color: var(--muted); max-height: 180px; overflow: auto; white-space: pre-wrap; padding: 6px 2px; }
+
+/* sheets */
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .35); z-index: 50; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--panel); width: 100%; max-width: 520px; border-radius: 14px 14px 0 0; max-height: 88vh; overflow: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 30px rgb(0 0 0 / .18); }
+@media (min-width: 640px) { .scrim { align-items: center; } .sheet { border-radius: 14px; } }
+.sheet h3 { margin: 0 0 4px; font-size: 18px; font-weight: 600; text-wrap: balance; }
+.sheet .sub { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+.sheet fieldset { border: 0; padding: 0; margin: 0 0 14px; display: grid; gap: 6px; min-width: 0; }
+.sheet legend { font-size: 13px; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.sheet label.opt { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.sheet label.opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.sheet label.opt input { accent-color: var(--accent); }
+.sheet .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sheet .grid2 label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.sheet .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; flex-wrap: wrap; }
+.sheet .list { font: 13px var(--mono); background: var(--soft); border-radius: 8px; padding: 8px 10px; max-height: 160px; overflow: auto; }
+.sheet .list div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet .menu { display: grid; gap: 8px; }
+.sheet .menu .btn { justify-content: flex-start; min-height: 48px; }
+.sheet .menu .btn small { color: var(--muted); margin-left: auto; font-size: 12px; }
+.note { font-size: 13px; color: var(--muted); }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
+  background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: 9px; font-size: 14px; max-width: calc(100% - 32px);
+  box-shadow: 0 6px 20px rgb(0 0 0 / .2); }
+.busy { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgb(0 0 0 / .25); }
+.busy div { background: var(--panel); border: 1px solid var(--line); padding: 14px 18px; border-radius: 10px; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><b>DataPro</b><span>输运数据处理 · 网页版</span></div>
+    <div class="row">
+      <button class="btn primary" id="btnImport" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg>导入</button>
+      <button class="btn" id="btnExport" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2.5 13.5h11"/></svg>导出</button>
+      <input type="file" id="fileInput" multiple hidden>
+    </div>
+  </header>
+
+  <div class="layout">
+      <section class="card filescard">
+        <h2>文件 <span class="count" id="treeCount"></span></h2>
+        <div class="tree" id="tree" role="tree" aria-label="文件"></div>
+        <div class="treebar">
+          <button class="btn small" id="btnSelAll" type="button">全选</button>
+          <button class="btn small" id="btnSelNone" type="button">取消选择</button>
+          <button class="btn small" id="btnFolder" type="button">新建文件夹</button>
+          <button class="btn small" id="btnRename" type="button">重命名</button>
+          <button class="btn small" id="btnMove" type="button">移动到</button>
+          <button class="btn small danger" id="btnDelete" type="button">删除</button>
+        </div>
+      </section>
+      <section class="card toolscard">
+        <h2>处理</h2>
+        <div class="pad tools">
+          <button class="btn" id="btnSym" type="button">对称化</button>
+          <button class="btn" id="btnAnti" type="button">反对称化</button>
+          <button class="btn" id="btnSplit" type="button">拆分 sweep</button>
+          <button class="btn" id="btnMerge" type="button">合并 sweep</button>
+          <button class="btn" id="btnReset" type="button">还原数据</button>
+          <button class="btn" id="btnCopy" type="button">复制 X/Y</button>
+        </div>
+      </section>
+
+    <section class="card plotcard">
+      <div class="plotbar">
+        <label class="field"><span>X</span><select class="col" id="selX"></select></label>
+        <label class="field"><span>Y</span><select class="col" id="selY"></select></label>
+        <label class="field"><span>X 轴</span><select id="scaleX"><option value="linear">线性</option><option value="log">对数</option></select></label>
+        <label class="field"><span>Y 轴</span><select id="scaleY"><option value="linear">线性</option><option value="log">对数</option></select></label>
+        <label class="chk"><input type="checkbox" id="optMarkers" checked>点</label>
+        <label class="chk"><input type="checkbox" id="optGrid" checked>网格</label>
+        <label class="chk"><input type="checkbox" id="optLegend" checked>图例</label>
+      </div>
+      <div id="plot"></div>
+      <div class="plotfoot">
+        <div class="seg" id="modeSeg" role="group" aria-label="触摸操作">
+          <button type="button" data-mode="gesture" aria-pressed="true">手势</button>
+          <button type="button" data-mode="zoom" aria-pressed="false">框放大</button>
+          <button type="button" data-mode="select" aria-pressed="false">框选</button>
+          <button type="button" data-mode="lasso" aria-pressed="false">套索</button>
+          <button type="button" data-mode="tap" aria-pressed="false">点选</button>
+        </div>
+        <button class="btn small" id="btnAuto" type="button">复位视图</button>
+        <span class="selinfo" id="selInfo"></span>
+        <button class="btn small danger" id="btnDelPts" type="button" hidden>删除选中点</button>
+        <button class="btn small" id="btnClearPts" type="button" hidden>清除选择</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">准备就绪</span><button type="button" id="btnLog">记录</button></div>
+  <div class="log" id="log" hidden></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script>
+/*__CORE__*/
+</script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const TAB10 = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+
+const fm = new DP.FileManager();
+const state = {
+  selected: [],            // selected tree items, in tree order
+  open: new Set(),         // expanded folders
+  x: '', y: '',
+  mode: 'gesture',
+  zoomed: false,           // view differs from the full-data view
+  points: new Map(),       // file -> Set(row index)
+  traceFiles: [],
+  plotKey: '',
+};
+
+// ------------------------------------------------------------------ status
+const logLines = [];
+function log(msg, err = false) {
+  logLines.push(`${new Date().toLocaleTimeString()}  ${msg}`);
+  if (logLines.length > 300) logLines.shift();
+  $('#statusText').textContent = msg;
+  $('#status').classList.toggle('err', err);
+  if (!$('#log').hidden) renderLog();
+}
+function renderLog() { $('#log').textContent = logLines.slice().reverse().join('\n'); }
+$('#btnLog').onclick = () => { const l = $('#log'); l.hidden = !l.hidden; $('#btnLog').textContent = l.hidden ? '记录' : '收起'; if (!l.hidden) renderLog(); };
+
+let toastTimer;
+function toast(msg) {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
+  t.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.remove(), 2600);
+}
+async function withBusy(msg, fn) {
+  const b = document.createElement('div');
+  b.className = 'busy'; b.innerHTML = `<div>${esc(msg)}</div>`;
+  document.body.append(b);
+  await new Promise(r => setTimeout(r, 30));
+  try { return await fn(); } finally { b.remove(); }
+}
+
+// ------------------------------------------------------------------ sheets
+function sheet(title, sub, bodyHtml, actions, onMount) {
+  return new Promise(resolve => {
+    const scrim = document.createElement('div');
+    scrim.className = 'scrim';
+    scrim.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <h3>${esc(title)}</h3>${sub ? `<p class="sub">${sub}</p>` : ''}<form>${bodyHtml}
+      <div class="actions"></div></form></div>`;
+    const form = scrim.querySelector('form');
+    const bar = scrim.querySelector('.actions');
+    const close = v => { scrim.remove(); resolve(v); };
+    (actions || [{ label: '取消', value: null }, { label: '确定', value: 'ok', primary: true }]).forEach(a => {
+      const b = document.createElement('button');
+      b.type = a.primary ? 'submit' : 'button';
+      b.className = 'btn' + (a.primary ? ' primary' : '') + (a.danger ? ' danger' : '');
+      b.textContent = a.label;
+      if (!a.primary) b.onclick = () => close(a.value === null ? null : { action: a.value, form });
+      bar.append(b);
+    });
+    const primary = (actions || []).find(a => a.primary) || { value: 'ok' };
+    form.onsubmit = e => { e.preventDefault(); close({ action: primary.value, form }); };
+    scrim.addEventListener('click', e => { if (e.target === scrim) close(null); });
+    scrim.addEventListener('keydown', e => { if (e.key === 'Escape') close(null); });
+    document.body.append(scrim);
+    const first = scrim.querySelector('input:not([type=radio]), select, .actions .btn.primary');
+    if (first) first.focus({ preventScroll: true });
+    if (onMount) onMount(scrim, close);
+  });
+}
+const confirmSheet = (title, sub, label = '确定', danger = false) =>
+  sheet(title, sub, '', [{ label: '取消', value: null }, { label, value: 'ok', primary: true, danger }]).then(r => !!r);
+function radios(name, opts, checked) {
+  return opts.map(([v, l]) => `<label class="opt"><input type="radio" name="${name}" value="${esc(v)}"${v === checked ? ' checked' : ''}>${esc(l)}</label>`).join('');
+}
+const formVal = (form, name) => { const el = form.elements[name]; return el ? el.value : undefined; };
+
+// ------------------------------------------------------------------ helpers
+function selectedFiles() {
+  const out = [];
+  for (const n of state.selected) for (const f of fm.filesRecursive(n)) if (!out.includes(f)) out.push(f);
+  return out;
+}
+function selectedDirectFiles() { return state.selected.filter(n => fm.nodes.has(n) && !fm.nodes.get(n).isFolder); }
+const EXAMPLE = '示例数据（可删除）';
+function targetFolder() {
+  const first = state.selected[0];
+  return first && first !== EXAMPLE && fm.nodes.get(first)?.isFolder ? first : null;
+}
+function orderSelection() {
+  const order = fm.walk().map(w => w.name);
+  state.selected = state.selected.filter(n => fm.nodes.has(n)).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+}
+function columnsOf(files) {
+  for (const f of files) { const t = fm.current(f); if (t) return t.columns; }
+  return [];
+}
+
+// ------------------------------------------------------------------ tree
+const CARET = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 3 5 5-5 5"/></svg>';
+function renderTree() {
+  orderSelection();
+  const el = $('#tree');
+  const rows = [];
+  const rec = (names, depth) => {
+    for (const name of names) {
+      const n = fm.nodes.get(name);
+      const sel = state.selected.includes(name);
+      const pad = 6 + depth * 18;
+      if (n.isFolder) {
+        const open = state.open.has(name);
+        rows.push(`<div class="item folder${sel ? ' sel' : ''}" role="treeitem" aria-expanded="${open}" aria-selected="${sel}" tabindex="0" data-name="${esc(name)}" style="padding-left:${pad}px">
+          <button class="caret${open ? ' open' : ''}" type="button" data-caret aria-label="${open ? '收起' : '展开'}">${CARET}</button>
+          <span class="tick"></span><span class="name">${esc(name)}</span><span class="meta">${fm.filesRecursive(name).length}</span></div>`);
+        if (open) rec(n.children, depth + 1);
+      } else {
+        const t = fm.current(name);
+        rows.push(`<div class="item${sel ? ' sel' : ''}" role="treeitem" aria-selected="${sel}" tabindex="0" data-name="${esc(name)}" style="padding-left:${pad}px">
+          <span class="spacer"></span><span class="tick"></span><span class="name">${esc(name)}</span>
+          ${n.modified ? '<span class="badge">已改</span>' : ''}<span class="meta">${DP.nrows(t).toLocaleString()}</span></div>`);
+      }
+    }
+  };
+  rec(fm.rootItems, 0);
+  const files = [...fm.nodes.values()].filter(n => !n.isFolder).length;
+  $('#treeCount').textContent = files ? `${files} 个文件` + (state.selected.length ? ` · 已选 ${state.selected.length}` : '') : '';
+  el.innerHTML = rows.join('') || '<div class="empty">还没有数据。点上方“导入”，从“文件”App 里选 Dropbox 中的 txt、csv、hk 或 h5 文件。</div>';
+}
+$('#tree').addEventListener('click', e => {
+  const item = e.target.closest('.item');
+  if (!item) return;
+  const name = item.dataset.name;
+  if (e.target.closest('[data-caret]')) {
+    state.open.has(name) ? state.open.delete(name) : state.open.add(name);
+    renderTree();
+    return;
+  }
+  const i = state.selected.indexOf(name);
+  if (i >= 0) state.selected.splice(i, 1); else state.selected.push(name);
+  onSelectionChange();
+});
+$('#tree').addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('item')) { e.preventDefault(); e.target.click(); }
+});
+$('#btnSelAll').onclick = () => { state.selected = fm.rootItems.slice(); onSelectionChange(); };
+$('#btnSelNone').onclick = () => { state.selected = []; onSelectionChange(); };
+
+function onSelectionChange() {
+  renderTree();
+  updateColumns();
+  plot();
+}
+
+// ------------------------------------------------------------------ columns
+function fillSelect(sel, cols, value) {
+  sel.innerHTML = cols.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (cols.includes(value)) sel.value = value;
+}
+function updateColumns() {
+  const cols = columnsOf(selectedFiles());
+  if (!cols.length) { fillSelect($('#selX'), [], ''); fillSelect($('#selY'), [], ''); return; }
+  if (!cols.includes(state.x)) state.x = cols[0];
+  if (!cols.includes(state.y)) state.y = cols[1] || cols[0];
+  fillSelect($('#selX'), cols, state.x);
+  fillSelect($('#selY'), cols, state.y);
+}
+$('#selX').onchange = e => { state.x = e.target.value; clearPoints(false); plot(); save(); };
+$('#selY').onchange = e => { state.y = e.target.value; clearPoints(false); plot(); save(); };
+['scaleX', 'scaleY', 'optMarkers', 'optGrid', 'optLegend'].forEach(id => { $('#' + id).onchange = () => { plot(); save(); }; });
+
+// ------------------------------------------------------------------ plot
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function axisTitle(t) { return { text: t, font: { size: 13 } }; }
+
+function plot() {
+  const el = $('#plot');
+  const files = selectedFiles();
+  const x = state.x, y = state.y;
+  if (!files.length || !x || !y) {
+    Plotly.purge(el);
+    el.innerHTML = `<div class="plotempty">${fm.nodes.size ? '在左侧点选文件或文件夹，就会画出 X–Y 曲线。' : '导入数据后在这里画图。'}</div>`;
+    state.traceFiles = [];
+    updatePointUi();
+    return;
+  }
+  if (el.querySelector('.plotempty')) el.innerHTML = '';
+  const markers = $('#optMarkers').checked;
+  const traces = [];
+  state.traceFiles = [];
+  files.forEach((f, i) => {
+    const t = fm.current(f);
+    if (!t || !t.columns.includes(x) || !t.columns.includes(y)) return;
+    const n = DP.nrows(t);
+    traces.push({
+      type: n > 4000 ? 'scattergl' : 'scatter', mode: markers ? 'lines+markers' : 'lines', name: f,
+      x: t.data[x], y: t.data[y], line: { width: 1.5, color: TAB10[i % 10] },
+      marker: { size: 5, color: TAB10[i % 10] }, opacity: 0.85,
+      hovertemplate: `${esc(f)}<br>${esc(x)}=%{x}<br>${esc(y)}=%{y}<extra></extra>`,
+    });
+    state.traceFiles.push(f);
+  });
+  // highlighted points
+  const px = [], py = [];
+  for (const [f, set] of state.points) {
+    const t = fm.current(f);
+    if (!t || !t.columns.includes(x) || !t.columns.includes(y)) continue;
+    for (const i of set) { px.push(t.data[x][i]); py.push(t.data[y][i]); }
+  }
+  if (px.length) traces.push({ type: 'scatter', mode: 'markers', x: px, y: py, name: '选中点', showlegend: false, hoverinfo: 'skip',
+    marker: { size: 11, color: 'rgba(0,0,0,0)', line: { width: 2, color: cssVar('--mark') } } });
+
+  const ink = cssVar('--ink'), line = cssVar('--line'), muted = cssVar('--muted');
+  const grid = $('#optGrid').checked;
+  const ax = (title, type) => ({ title: axisTitle(title), type, showgrid: grid, gridcolor: line, griddash: 'dash', zeroline: false,
+    linecolor: muted, mirror: true, ticks: 'outside', tickcolor: muted, color: ink, exponentformat: 'e', automargin: true });
+  const key = `${files.join('|')}::${x}::${y}::${$('#scaleX').value}${$('#scaleY').value}`;
+  const narrow = el.clientWidth < 600;
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { family: cssVar('--font'), color: ink, size: 12 },
+    margin: { l: 56, r: 14, t: 10, b: 46 }, xaxis: ax(x, $('#scaleX').value), yaxis: ax(y, $('#scaleY').value),
+    showlegend: $('#optLegend').checked && state.traceFiles.length <= 10,
+    legend: narrow ? { orientation: 'h', x: 0, y: -0.22, yanchor: 'top', font: { size: 11 } } : { x: 1, xanchor: 'right', y: 1, bgcolor: cssVar('--panel'), bordercolor: line, borderwidth: 1, font: { size: 11 } },
+    dragmode: dragModeOf(state.mode), hovermode: 'closest', uirevision: key, selections: [],
+    hoverlabel: { font: { family: cssVar('--mono') } },
+  };
+  if (key !== state.plotKey) { state.plotKey = key; state.zoomed = false; }
+  Plotly.react(el, traces, layout, { responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset' });
+  el.classList.toggle('gesture', state.mode === 'gesture');
+  if (!el._bound) { bindPlotEvents(el); bindTouchGestures(el); }
+  updatePointUi();
+}
+
+function bindPlotEvents(el) {
+  el._bound = true;
+  el.on('plotly_selected', ev => {
+    if (!ev || !ev.points || !ev.points.length) return;
+    let added = 0;
+    for (const p of ev.points) {
+      const f = state.traceFiles[p.curveNumber];
+      if (!f) continue;
+      const idx = p.pointIndex ?? p.pointNumber;
+      if (!state.points.has(f)) state.points.set(f, new Set());
+      const s = state.points.get(f);
+      if (!s.has(idx)) { s.add(idx); added++; }
+    }
+    log(`选中 ${added} 个点`);
+    plot();
+  });
+  el.on('plotly_click', ev => {
+    if (state.mode !== 'tap' || !ev || !ev.points || !ev.points.length) return;
+    const p = ev.points[0];
+    const f = state.traceFiles[p.curveNumber];
+    if (!f) return;
+    const idx = p.pointIndex ?? p.pointNumber;
+    if (!state.points.has(f)) state.points.set(f, new Set());
+    const s = state.points.get(f);
+    s.has(idx) ? s.delete(idx) : s.add(idx);
+    plot();
+  });
+}
+
+function dragModeOf(mode) {
+  // in gesture mode touches are handled below; a mouse still pans through Plotly
+  return mode === 'gesture' ? 'pan' : mode === 'tap' ? false : mode;
+}
+
+// ------------------------------------------------------------------ touch gestures (photo-style)
+// one finger pans (with inertia), two fingers pinch around their midpoint, double tap zooms in / back out,
+// single tap shows the nearest value. Ranges are worked in axis coordinates, so log axes behave too.
+function bindTouchGestures(el) {
+  const axes = () => { const L = el._fullLayout; return L && L.xaxis && L.yaxis ? [L.xaxis, L.yaxis] : null; };
+  // pixel (relative to el) -> axis coordinate, from a snapshot of the axis
+  const snap = ax => ({ r0: ax.range[0], r1: ax.range[1], off: ax._offset, len: ax._length });
+  const fracX = (s, px) => (px - s.off) / s.len;
+  const fracY = (s, py) => (s.off + s.len - py) / s.len;
+  const coord = (s, f) => s.r0 + f * (s.r1 - s.r0);
+
+  let pending = null, frame = 0, timer = 0;
+  function flush() {
+    cancelAnimationFrame(frame); clearTimeout(timer); frame = timer = 0;
+    const p = pending; pending = null;
+    if (p) Plotly.relayout(el, p);
+  }
+  function apply(xr, yr) {
+    pending = { 'xaxis.range': xr, 'yaxis.range': yr };
+    state.zoomed = true;
+    // one redraw per frame; the timer covers views where animation frames are paused
+    if (!frame) { frame = requestAnimationFrame(flush); timer = setTimeout(flush, 40); }
+  }
+  const local = t => { const r = el.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+  const inPlot = p => { const a = axes(); return a && p.x >= a[0]._offset && p.x <= a[0]._offset + a[0]._length && p.y >= a[1]._offset && p.y <= a[1]._offset + a[1]._length; };
+
+  let g = null;            // active gesture
+  let inertia = 0;
+  let lastTap = null, tapTimer = 0;
+
+  function startPan(p) {
+    const [xa, ya] = axes();
+    g = { kind: 'pan', p0: p, sx: snap(xa), sy: snap(ya), moved: false, t0: performance.now(), hist: [{ p, t: performance.now() }] };
+  }
+  function startPinch(a, b) {
+    const [xa, ya] = axes();
+    const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    // fingers side by side stretch X only, one above the other stretch Y only, diagonal scales both
+    const lock = angle < 25 ? 'x' : angle > 65 ? 'y' : 'xy';
+    g = { kind: 'pinch', lock, sx: snap(xa), sy: snap(ya), m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, d0: { x: Math.max(dx, 1), y: Math.max(dy, 1), r: Math.max(Math.hypot(dx, dy), 1) }, moved: true };
+  }
+
+  el.addEventListener('touchstart', e => {
+    if (state.mode !== 'gesture' || !axes()) return;
+    cancelAnimationFrame(inertia); inertia = 0;
+    e.preventDefault(); e.stopPropagation();
+    const ts = [...e.touches].map(local);
+    if (ts.length >= 2) startPinch(ts[0], ts[1]);
+    else if (inPlot(ts[0])) startPan(ts[0]);
+    else g = null;
+  }, { capture: true, passive: false });
+
+  el.addEventListener('touchmove', e => {
+    if (state.mode !== 'gesture' || !g) return;
+    e.preventDefault(); e.stopPropagation();
+    const ts = [...e.touches].map(local);
+    if (g.kind === 'pan' && ts.length === 1) {
+      const p = ts[0], { sx, sy } = g;
+      if (Math.hypot(p.x - g.p0.x, p.y - g.p0.y) > 6) g.moved = true;
+      if (!g.moved) return;
+      const ddx = (p.x - g.p0.x) / sx.len * (sx.r1 - sx.r0), ddy = (p.y - g.p0.y) / sy.len * (sy.r1 - sy.r0);
+      apply([sx.r0 - ddx, sx.r1 - ddx], [sy.r0 + ddy, sy.r1 + ddy]);
+      g.hist.push({ p, t: performance.now() });
+      if (g.hist.length > 6) g.hist.shift();
+    } else if (g.kind === 'pinch' && ts.length >= 2) {
+      const [a, b] = ts, { sx, sy, m0, d0, lock } = g;
+      const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const r = Math.max(Math.hypot(b.x - a.x, b.y - a.y), 1);
+      const kx = lock === 'y' ? 1 : d0.r / r, ky = lock === 'x' ? 1 : d0.r / r;
+      // the data point under the starting midpoint stays under the fingers
+      const cx = coord(sx, fracX(sx, m0.x)), cy = coord(sy, fracY(sy, m0.y));
+      const wx = (sx.r1 - sx.r0) * kx, wy = (sy.r1 - sy.r0) * ky;
+      const x0 = cx - fracX(sx, m.x) * wx, y0 = cy - fracY(sy, m.y) * wy;
+      apply([x0, x0 + wx], [y0, y0 + wy]);
+    } else if (ts.length >= 2) startPinch(ts[0], ts[1]);
+  }, { capture: true, passive: false });
+
+  el.addEventListener('touchend', e => {
+    if (state.mode !== 'gesture' || !g) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.touches.length === 1) { startPan(local(e.touches[0])); g.moved = true; return; }  // pinch -> pan
+    if (e.touches.length) return;
+    const done = g; g = null;
+    if (done.kind !== 'pan') return;
+    if (!done.moved) { onTap(done.p0); return; }
+    // release velocity from the last ~80 ms, then glide
+    const now = performance.now(), recent = done.hist.filter(h => now - h.t < 80);
+    if (recent.length < 2) return;
+    const a = recent[0], b = recent[recent.length - 1], dt = Math.max(b.t - a.t, 1);
+    let vx = (b.p.x - a.p.x) / dt, vy = (b.p.y - a.p.y) / dt;   // px per ms
+    if (Math.hypot(vx, vy) < 0.25) return;
+    const [xa, ya] = axes();
+    let sx = snap(xa), sy = snap(ya), last = now;
+    const step = t => {
+      const dtt = t - last; last = t;
+      const decay = Math.pow(0.94, dtt / 16);
+      vx *= decay; vy *= decay;
+      const ddx = vx * dtt / sx.len * (sx.r1 - sx.r0), ddy = vy * dtt / sy.len * (sy.r1 - sy.r0);
+      sx = { ...sx, r0: sx.r0 - ddx, r1: sx.r1 - ddx }; sy = { ...sy, r0: sy.r0 + ddy, r1: sy.r1 + ddy };
+      apply([sx.r0, sx.r1], [sy.r0, sy.r1]);
+      inertia = Math.hypot(vx, vy) > 0.02 ? requestAnimationFrame(step) : 0;
+    };
+    inertia = requestAnimationFrame(step);
+  }, { capture: true, passive: false });
+
+  el.addEventListener('touchcancel', () => { g = null; }, { capture: true });
+
+  function onTap(p) {
+    const now = performance.now();
+    if (lastTap && now - lastTap.t < 320 && Math.hypot(p.x - lastTap.p.x, p.y - lastTap.p.y) < 30) {
+      clearTimeout(tapTimer); lastTap = null;
+      if (state.zoomed) { resetView(); return; }
+      const [xa, ya] = axes(), sx = snap(xa), sy = snap(ya), k = 1 / 2.5;
+      const cx = coord(sx, fracX(sx, p.x)), cy = coord(sy, fracY(sy, p.y));
+      const wx = (sx.r1 - sx.r0) * k, wy = (sy.r1 - sy.r0) * k;
+      // zoom into the tapped point, keeping it where the finger is
+      const x0 = cx - fracX(sx, p.x) * wx, y0 = cy - fracY(sy, p.y) * wy;
+      Plotly.relayout(el, { 'xaxis.range': [x0, x0 + wx], 'yaxis.range': [y0, y0 + wy] });
+      state.zoomed = true;
+      return;
+    }
+    lastTap = { p, t: now };
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => {
+      // single tap: read out the nearest point
+      const [xa, ya] = axes();
+      Plotly.Fx.hover(el, { xpx: p.x - xa._offset, ypx: p.y - ya._offset });
+    }, 330);
+  }
+
+  el.on('plotly_relayout', ev => {
+    if (ev && (ev['xaxis.autorange'] || ev['yaxis.autorange'])) state.zoomed = false;
+    else if (ev && (ev['xaxis.range[0]'] !== undefined || ev['xaxis.range'])) state.zoomed = true;
+  });
+}
+
+function countPoints() { let n = 0; for (const s of state.points.values()) n += s.size; return n; }
+function updatePointUi() {
+  const n = countPoints();
+  $('#selInfo').textContent = n ? `已选 ${n} 个点` : '';
+  $('#btnDelPts').hidden = !n;
+  $('#btnClearPts').hidden = !n;
+}
+function clearPoints(redraw = true) { state.points.clear(); if (redraw) plot(); else updatePointUi(); }
+
+$('#modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button[data-mode]');
+  if (!b) return;
+  state.mode = b.dataset.mode;
+  $('#modeSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  $('#plot').classList.toggle('gesture', state.mode === 'gesture');
+  if (state.traceFiles.length) Plotly.relayout('plot', { dragmode: dragModeOf(state.mode) });
+});
+function resetView() {
+  state.zoomed = false;
+  if (state.traceFiles.length) Plotly.relayout('plot', { 'xaxis.autorange': true, 'yaxis.autorange': true });
+}
+$('#btnAuto').onclick = resetView;
+$('#btnClearPts').onclick = () => { clearPoints(); log('已清除选中的点'); };
+$('#btnDelPts').onclick = async () => {
+  const n = countPoints();
+  if (!await confirmSheet(`删除 ${n} 个点？`, '从文件里删掉这些数据点。删除后可以用“还原数据”恢复原始文件。', '删除', true)) return;
+  let files = 0;
+  for (const [f, set] of state.points) {
+    const t = fm.current(f);
+    if (!t || !set.size) continue;
+    const keep = [];
+    for (let i = 0; i < DP.nrows(t); i++) if (!set.has(i)) keep.push(i);
+    fm.update(f, DP.takeRows(t, keep));
+    files++;
+  }
+  state.points.clear();
+  log(`从 ${files} 个文件中删除了 ${n} 个点`);
+  renderTree(); plot(); save();
+};
+
+// ------------------------------------------------------------------ import
+$('#btnImport').onclick = () => $('#fileInput').click();
+$('#fileInput').onchange = async e => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  if (!files.length) return;
+  const target = targetFolder();
+  const before = new Set(fm.nodes.keys());
+  await withBusy(`正在读取 ${files.length} 个文件…`, async () => {
+    for (const file of files) {
+      try { await importFile(file, target); }
+      catch (err) { log(`${file.name}：${err.message || err}`, true); toast(`${file.name} 读取失败`); }
+    }
+  });
+  if (target) state.open.add(target);
+  // select what was just imported so it plots right away
+  const added = [...fm.nodes.keys()].filter(n => !before.has(n));
+  const top = added.filter(n => !added.includes(fm.nodes.get(n).parent));
+  if (top.length) state.selected = top;
+  onSelectionChange(); save();
+};
+
+async function importFile(file, target) {
+  const lower = file.name.toLowerCase();
+  const base = file.name.replace(/\.[^.]+$/, '');
+  if (lower.endsWith('.h5') || lower.endsWith('.hdf5')) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const r = await readH5(buf, base);
+    addItems(r.items, target, r.structured);
+    log(`已读取 HDF5：${file.name}（${r.items.filter(i => !i.isFolder).length} 个数据）`);
+  } else if (lower.endsWith('.hk')) {
+    const r = DP.parseHkFile(await file.text());
+    const folder = fm.addFolder(base, target).name;
+    r.runs.forEach(run => fm.addFile(run.name, run.table, folder));
+    state.open.add(folder);
+    log(`已读取 HK：${base}（${r.runs.length} 个 run，${r.blocks} 个数据块${r.skipped ? `，跳过 ${r.skipped} 个` : ''}）`);
+  } else if (lower.endsWith('.json')) {
+    const items = DP.projectFromJson(await file.text());
+    addItems(items, target, true);
+    log(`已打开工程：${file.name}`);
+  } else {
+    const t = DP.parseTextFile(await file.text());
+    fm.addFile(file.name, t, target);
+    log(`已读取：${file.name}（${DP.nrows(t)} 行，${t.columns.length} 列）`);
+  }
+}
+
+// mirrors load_hdf5_file: folders keep their parents, top level goes into the target folder
+function addItems(items, target, structured) {
+  const rename = new Map();
+  for (const it of items) {
+    const parent = it.parent ? (rename.get(it.parent) || it.parent) : target;
+    const node = it.isFolder ? fm.addFolder(it.name, parent) : fm.addFile(it.name, it.table, parent);
+    if (node.name !== it.name) rename.set(it.name, node.name);
+    if (it.isFolder && (!it.parent || !structured)) state.open.add(node.name);
+  }
+}
+
+// ------------------------------------------------------------------ HDF5 via h5wasm
+let h5Ready = null;
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('无法加载 ' + src.split('/').pop()));
+    document.head.append(s);
+  });
+}
+function h5lib() {
+  if (!h5Ready) h5Ready = (async () => {
+    await loadScript('https://cdn.jsdelivr.net/npm/h5wasm@0.10.3/dist/iife/h5wasm.js');
+    const lib = window.h5wasm.default || window.h5wasm;
+    const Module = await lib.ready;
+    const dir = Module.get_plugin_search_paths()[0];
+    Module.FS.mkdirTree(dir);
+    const resp = await fetch('h5plugins/libH5Zblosc.wasm');
+    if (!resp.ok) throw new Error('blosc 解压插件没有加载成功');
+    Module.FS.writeFile(`${dir}/libH5Zblosc.so`, new Uint8Array(await resp.arrayBuffer()));
+    return { lib, Module };
+  })().catch(e => { h5Ready = null; throw e; });
+  return h5Ready;
+}
+async function readH5(buf, base) {
+  const { lib, Module } = await h5lib();
+  const path = `/in_${Date.now()}.h5`;
+  Module.FS.writeFile(path, buf);
+  const f = new lib.File(path, 'r');
+  try { return DP.readHdfProject(f, base); }
+  finally { f.close(); Module.FS.unlink(path); }
+}
+
+// ------------------------------------------------------------------ file ops
+$('#btnFolder').onclick = async () => {
+  const parent = targetFolder();
+  const r = await sheet('新建文件夹', parent ? `建在“${esc(parent)}”里面` : '建在最外层',
+    '<fieldset><input type="text" name="name" id="newFolderName" value="新文件夹" autocomplete="off"></fieldset>');
+  if (!r) return;
+  const name = formVal(r.form, 'name').trim();
+  if (!name) return;
+  const node = fm.addFolder(name, parent);
+  if (parent) state.open.add(parent);
+  state.open.add(node.name);
+  log(`已建文件夹：${node.name}`);
+  renderTree(); save();
+};
+$('#btnRename').onclick = async () => {
+  if (state.selected.length !== 1) { toast('请只选一个文件或文件夹'); return; }
+  const old = state.selected[0];
+  const r = await sheet('重命名', null, `<fieldset><input type="text" name="name" id="renameInput" value="${esc(old)}" autocomplete="off"></fieldset>`);
+  if (!r) return;
+  const name = formVal(r.form, 'name').trim();
+  if (!name || name === old) return;
+  if (!fm.rename(old, name)) { toast('这个名字已经被占用'); return; }
+  if (state.open.delete(old)) state.open.add(name);
+  if (state.points.has(old)) { state.points.set(name, state.points.get(old)); state.points.delete(old); }
+  state.selected = [name];
+  log(`已重命名：${old} → ${name}`);
+  renderTree(); plot(); save();
+};
+$('#btnMove').onclick = async () => {
+  if (!state.selected.length) { toast('先选要移动的文件或文件夹'); return; }
+  const folders = fm.walk().filter(w => fm.nodes.get(w.name).isFolder && !state.selected.includes(w.name)
+    && !state.selected.some(s => fm.isInside(w.name, s)));
+  const opts = [['', '最外层'], ...folders.map(w => [w.name, ' '.repeat(w.depth * 2) + w.name])];
+  const r = await sheet(`移动 ${state.selected.length} 项`, '选目标文件夹', `<fieldset>${radios('to', opts, '')}</fieldset>`);
+  if (!r) return;
+  const to = formVal(r.form, 'to') || null;
+  let n = 0;
+  for (const s of state.selected.slice()) if (fm.moveItem(s, to)) n++;
+  if (to) state.open.add(to);
+  log(`已移动 ${n} 项到 ${to || '最外层'}`);
+  renderTree(); save();
+};
+$('#btnDelete').onclick = async () => {
+  if (!state.selected.length) { toast('先选要删除的文件或文件夹'); return; }
+  const files = selectedFiles().length;
+  if (!await confirmSheet(`删除 ${state.selected.length} 项？`, `其中共有 ${files} 个数据文件。只从这里移除，不会动 Dropbox 里的原文件。`, '删除', true)) return;
+  for (const s of state.selected) { for (const f of fm.filesRecursive(s)) state.points.delete(f); fm.deleteItem(s); }
+  log(`已删除 ${state.selected.length} 项`);
+  state.selected = [];
+  onSelectionChange(); save();
+};
+$('#btnReset').onclick = async () => {
+  const files = selectedFiles().filter(f => fm.nodes.get(f).modified);
+  if (!files.length) { toast('选中的文件都没有修改过'); return; }
+  if (!await confirmSheet(`还原 ${files.length} 个文件？`, '撤销删点、对称化等所有修改，回到导入时的数据。', '还原')) return;
+  files.forEach(f => { fm.reset(f); state.points.delete(f); });
+  log(`已还原 ${files.length} 个文件`);
+  renderTree(); updateColumns(); plot(); save();
+};
+
+// ------------------------------------------------------------------ processing
+function needXY() {
+  if (!selectedFiles().length) { toast('先选文件'); return false; }
+  if (!state.x || !state.y) { toast('先选 X 和 Y 列'); return false; }
+  return true;
+}
+async function symDialog(kind) {
+  if (!needXY()) return;
+  const anti = kind === 'anti';
+  const files = selectedFiles();
+  const r = await sheet(anti ? '反对称化' : '对称化',
+    `${anti ? '(f(x) − f(−x))/2' : '(f(x) + f(−x))/2'}，X = <b>${esc(state.x)}</b>，Y = <b>${esc(state.y)}</b>，共 ${files.length} 个文件。结果作为新列 <b>${anti ? 'antisymmetrized_' : 'symmetrized_'}${esc(state.y)}</b> 加到文件里。`,
+    `<fieldset><legend>数据类型</legend>${radios('sweep', [['hysteretic', '滞回（来回扫，先平均上扫和下扫）'], ['non_hysteretic', '单向扫描']], 'hysteretic')}</fieldset>
+     <fieldset><legend>插值方法</legend>${radios('method', [['linear', '线性插值'], ['cubic', '三次样条']], 'linear')}</fieldset>
+     <fieldset><legend>范围（留空 = 自动）</legend><div class="grid2">
+       <label>X 最小值<input type="text" inputmode="decimal" name="xmin" id="symXmin" placeholder="auto"></label>
+       <label>X 最大值<input type="text" inputmode="decimal" name="xmax" id="symXmax" placeholder="auto"></label></div></fieldset>`,
+    [{ label: '取消', value: null }, { label: '应用', value: 'ok', primary: true }]);
+  if (!r) return;
+  const rng = v => { v = (v || '').trim(); if (!v || v.toLowerCase() === 'auto') return 'auto'; const n = Number(v); if (!Number.isFinite(n)) throw new Error('范围要填数字或留空'); return n; };
+  let xmin, xmax;
+  try { xmin = rng(formVal(r.form, 'xmin')); xmax = rng(formVal(r.form, 'xmax')); } catch (e) { toast(e.message); return; }
+  const sweep = formVal(r.form, 'sweep'), method = formVal(r.form, 'method');
+  let ok = 0, col = '';
+  for (const f of files) {
+    const t = fm.current(f);
+    if (!t.columns.includes(state.x) || !t.columns.includes(state.y)) { log(`${f}：没有 ${state.x} 或 ${state.y} 列，已跳过`); continue; }
+    try {
+      const res = (anti ? DP.antisymmetrize : DP.symmetrize)(t, state.x, state.y, sweep, method, xmin, xmax);
+      fm.update(f, res.table); col = res.column; ok++;
+      log(`${f}：|${state.x}| ≤ ${+res.range.toPrecision(6)} 范围内有结果，范围外为空`);
+      if (res.single) log(`${f}：没分出上扫和下扫两段，已按单向扫描处理`);
+    } catch (e) { log(`${f}：${e.message}`, true); }
+  }
+  if (ok) {
+    state.y = col;
+    log(`${anti ? '反对称化' : '对称化'}完成：${ok} 个文件，新列 ${col}`);
+    toast(`已添加列 ${col}`);
+  }
+  renderTree(); updateColumns(); plot(); save();
+}
+$('#btnSym').onclick = () => symDialog('sym');
+$('#btnAnti').onclick = () => symDialog('anti');
+
+$('#btnSplit').onclick = async () => {
+  const files = selectedFiles();
+  if (!files.length) { toast('先选要拆分的文件'); return; }
+  const cols = columnsOf(files);
+  const guess = cols.find(c => ['field', 'b', 'magnetic', 'h', 'hall'].some(k => c.toLowerCase().includes(k))) || state.x || cols[0];
+  const opt = (c, v) => `<option value="${esc(c)}"${c === v ? ' selected' : ''}>${esc(c)}</option>`;
+  const r = await sheet('拆分 sweep', `按扫描方向的变化，把每个文件拆成多段。共 ${files.length} 个文件，原文件会被拆出来的各段替换。`,
+    `<fieldset><legend>扫描量所在的列</legend><select name="field" id="splitField">${cols.map(c => opt(c, guess)).join('')}</select></fieldset>
+     <fieldset><legend>参数列（可选，写进文件名）</legend><select name="param" id="splitParam"><option value="">无</option>${cols.map(c => opt(c, '')).join('')}</select></fieldset>
+     <div class="grid2" style="margin-bottom:14px">
+       <label>参数缩写（如 T、G）<input type="text" name="abbrev" id="splitAbbrev" autocomplete="off"></label>
+       <label>每段最少点数<input type="number" name="min" id="splitMin" value="10" min="1" inputmode="numeric"></label></div>`,
+    [{ label: '取消', value: null }, { label: '拆分', value: 'ok', primary: true }]);
+  if (!r) return;
+  const field = formVal(r.form, 'field'), param = formVal(r.form, 'param'), abbrev = formVal(r.form, 'abbrev').trim();
+  const minPoints = Math.max(1, parseInt(formVal(r.form, 'min'), 10) || 10);
+  let split = 0;
+  const created = [];
+  for (const f of files) {
+    const t = fm.current(f);
+    if (!t || !t.columns.includes(field)) continue;
+    const res = DP.splitSweeps(t, f, field, { minPoints, paramCol: param, paramAbbrev: abbrev });
+    if (!res.segments.length) { log(`${f}：${res.reason}`); continue; }
+    const parent = fm.nodes.get(f).parent;
+    const sib = fm.siblings(f);
+    let pos = sib.indexOf(f);
+    for (const s of res.segments) {
+      const node = fm.addFile(s.name, s.table, parent);
+      fm.moveItem(node.name, parent, ++pos);
+      created.push(node.name);
+    }
+    state.points.delete(f);
+    fm.deleteItem(f);
+    log(`${f} 拆成 ${res.segments.length} 段`);
+    split++;
+  }
+  if (split) { state.selected = created; toast(`拆分了 ${split} 个文件，共 ${created.length} 段`); }
+  else toast('没有检测到多段 sweep');
+  onSelectionChange(); save();
+};
+
+$('#btnMerge').onclick = async () => {
+  const files = selectedFiles();
+  if (files.length < 2) { toast('至少选 2 个文件才能合并'); return; }
+  const r = await sheet('合并 sweep', '把选中的文件合成滞回回线。新文件加在第一个文件旁边，原文件保留。',
+    `<fieldset><legend>合并方式</legend>${radios('strategy', [['concatenate', '首尾拼接'], ['interleave', '逐点交替']], 'concatenate')}</fieldset>
+     <fieldset><legend>配对方式</legend>${radios('pair', [['sequential', '按顺序两两配对（1+2，3+4…）'], ['smart', '按文件名里的参数配对 up/down'], ['all_in_one', '全部合成一个文件']], 'sequential')}</fieldset>
+     <fieldset><legend>选中的文件（按列表顺序）</legend><div class="list">${files.map(f => `<div>${esc(f)}</div>`).join('')}</div></fieldset>`,
+    [{ label: '取消', value: null }, { label: '合并', value: 'ok', primary: true }]);
+  if (!r) return;
+  const strategy = formVal(r.form, 'strategy'), pair = formVal(r.form, 'pair');
+  const fn = { all_in_one: DP.mergeAll, sequential: DP.mergeSequential, smart: DP.mergeSmart }[pair];
+  const out = fn(files, strategy, n => fm.current(n));
+  if (!out.length) { toast('没有可以配对的文件'); return; }
+  const created = out.map(m => fm.addFile(m.name, m.table, fm.nodes.get(m.anchor).parent).name);
+  state.selected = created;
+  log(`合并完成：生成 ${created.length} 个文件`);
+  toast(`生成了 ${created.length} 个合并文件`);
+  onSelectionChange(); save();
+};
+
+// ------------------------------------------------------------------ export
+const downloadsP = (window.claude && typeof window.claude.use === 'function') ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+async function saveFile(filename, data) {
+  const dl = await downloadsP;
+  if (dl) {
+    try { await dl.save({ filename, data }); log(`已保存：${filename}`); toast(`已保存 ${filename}`); }
+    catch (e) {
+      if (e && e.code === 'declined') toast('已取消保存');
+      else { log(`保存失败：${e && (e.message || e.code)}`, true); toast('保存失败，详见记录'); }
+    }
+    return;
+  }
+  const ext = filename.split('.').pop().toLowerCase();
+  const type = { csv: 'text/csv', json: 'application/json', zip: 'application/zip',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }[ext] || 'application/octet-stream';
+  const file = new File([data], filename, { type });
+  // iPhone/iPad: the share sheet ("存储到文件" -> Dropbox). It needs a fresh tap, because building
+  // a zip or workbook first uses up the tap that started the export.
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await sheet('文件已生成', `<b>${esc(filename)}</b>。点"存储"后在分享面板里选"存储到文件"，就能放进 Dropbox。`, '',
+      [{ label: '取消', value: null }, { label: '存储', value: 'ok', primary: true }],
+      (scrim, close) => {
+        scrim.querySelector('form').onsubmit = async e => {
+          e.preventDefault();
+          close(null);
+          try { await navigator.share({ files: [file] }); log(`已保存：${filename}`); }
+          catch (err) { if (err && err.name !== 'AbortError') { log(`保存失败：${err.message}`, true); toast('保存失败，详见记录'); } }
+        };
+      });
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = filename;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  log(`已保存：${filename}`);
+}
+const safeName = s => s.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120) || 'data';
+const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`; };
+
+$('#btnExport').onclick = () => {
+  const files = selectedFiles();
+  const nAll = [...fm.nodes.values()].filter(n => !n.isFolder).length;
+  sheet('导出', '文件会先让你确认，在 iPhone 上可以存到“文件”App 里的 Dropbox 文件夹。', `<div class="menu">
+      <button class="btn" type="button" data-x="project" ${nAll ? '' : 'disabled'}>保存工程<small>.json · 全部 ${nAll} 个文件</small></button>
+      <button class="btn" type="button" data-x="csv" ${files.length ? '' : 'disabled'}>导出选中文件为 CSV<small>${files.length > 1 ? `.zip · ${files.length} 个` : '.csv'}</small></button>
+      <button class="btn" type="button" data-x="xlsx" ${files.length && state.x ? '' : 'disabled'}>导出 X/Y 到 Excel<small>.xlsx · 一个表</small></button>
+      <button class="btn" type="button" data-x="copy" ${files.length && state.x ? '' : 'disabled'}>复制 X/Y 到剪贴板<small>可粘贴到 Origin</small></button>
+    </div><p class="note">工程文件只有网页版能打开；需要给桌面版用时，导出 CSV 或 Excel。</p>`,
+    [{ label: '关闭', value: null }],
+    (scrim, close) => {
+      scrim.querySelector('.menu').addEventListener('click', e => {
+        const b = e.target.closest('[data-x]');
+        if (!b) return;
+        close(null);
+        ({ project: exportProject, csv: exportCsv, xlsx: exportXlsx, copy: copyXY })[b.dataset.x]();
+      });
+    });
+};
+async function exportProject() { await saveFile(`datapro_${stamp()}.json`, DP.projectToJson(fm)); }
+async function exportCsv() {
+  const files = selectedFiles();
+  if (files.length === 1) { await saveFile(`${safeName(files[0].replace(/\.[^.]+$/, ''))}.csv`, DP.toCsv(fm.current(files[0]))); return; }
+  await withBusy('正在打包…', async () => {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    const zip = new JSZip(), used = new Set();
+    for (const f of files) {
+      let n = safeName(f) + '.csv', k = 1;
+      while (used.has(n)) n = `${safeName(f)}_${k++}.csv`;
+      used.add(n);
+      zip.file(n, DP.toCsv(fm.current(f)));
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    await saveFile(`datapro_${stamp()}.zip`, blob);
+  });
+}
+async function exportXlsx() {
+  const files = selectedFiles();
+  const { cols, headers } = DP.xyColumns(files, state.x, state.y, n => fm.current(n));
+  if (!cols.length) { toast(`选中的文件里没有 ${state.x} / ${state.y} 列`); return; }
+  await withBusy('正在生成 Excel…', async () => {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const m = Math.max(...cols.map(c => c.length));
+    const aoa = [headers];
+    for (let i = 0; i < m; i++) aoa.push(cols.map(c => (i < c.length && Number.isFinite(c[i]) ? c[i] : (typeof c[i] === 'string' ? c[i] : null))));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Combined_Data');
+    const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    await saveFile(`${safeName(state.x)}_${safeName(state.y)}_${stamp()}.xlsx`, new Blob([out]));
+  });
+}
+async function copyXY() {
+  const r = DP.xyTsv(selectedFiles(), state.x, state.y, n => fm.current(n));
+  if (!r) { toast(`选中的文件里没有 ${state.x} / ${state.y} 列`); return; }
+  try { await navigator.clipboard.writeText(r.text); toast(`已复制 ${r.pairs} 组 X/Y`); log(`已复制 ${r.pairs} 组 X/Y 到剪贴板`); }
+  catch (e) {
+    sheet('复制 X/Y', '这个窗口不允许直接写剪贴板。全选下面的文字后手动复制。',
+      `<textarea style="width:100%;height:200px;font:12px var(--mono)" readonly id="copyArea">${esc(r.text.slice(0, 200000))}</textarea>`,
+      [{ label: '关闭', value: null }]);
+    setTimeout(() => { const a = $('#copyArea'); if (a) { a.focus(); a.select(); } }, 50);
+  }
+}
+$('#btnCopy').onclick = () => { if (needXY()) copyXY(); };
+
+// ------------------------------------------------------------------ autosave (this browser only)
+const DB = 'datapro-web', STORE = 'kv';
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function kv(op, key, val) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, op === 'get' ? 'readonly' : 'readwrite');
+    const st = tx.objectStore(STORE);
+    const q = op === 'get' ? st.get(key) : st.put(val, key);
+    q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+  });
+}
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await kv('put', 'project', DP.projectToJson(fm));
+      await kv('put', 'ui', JSON.stringify({ x: state.x, y: state.y, open: [...state.open], selected: state.selected,
+        scaleX: $('#scaleX').value, scaleY: $('#scaleY').value, markers: $('#optMarkers').checked, grid: $('#optGrid').checked, legend: $('#optLegend').checked }));
+    } catch (e) { /* storage unavailable: the session still works */ }
+  }, 600);
+}
+
+// ------------------------------------------------------------------ example data
+function exampleItems() {
+  const folder = EXAMPLE;
+  const items = [{ name: folder, isFolder: true, parent: null }];
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+  for (const [T, rh, hc] of [[1.5, 12, 0.42], [3.0, 11, 0.28]]) {
+    const B = [], X1 = [], Hall1 = [], T1 = [];
+    const n = 160;
+    for (let i = 0; i <= 2 * n; i++) {
+      const b = i <= n ? 3 - 6 * i / n : -3 + 6 * (i - n) / n;
+      const branch = i <= n ? 1 : -1;
+      const m = Math.tanh((b + branch * hc) / 0.12);
+      B.push(+b.toFixed(4));
+      Hall1.push(rh * b + 9 * m + 0.6 * b * b + 0.08 * rnd());
+      X1.push(40 + 2.2 * b * b - 0.9 * Math.abs(m) + 0.4 * b + 0.05 * rnd());
+      T1.push(T + 0.01 * rnd());
+    }
+    items.push({ name: `示例 Hall 回线 T=${T} K.txt`, isFolder: false, parent: folder, table: DP.makeTable(['B', 'X1', 'Hall1', 'T1'], [B, X1, Hall1, T1]) });
+  }
+  return items;
+}
+
+// ------------------------------------------------------------------ start
+async function start() {
+  let restored = false;
+  try {
+    const p = await kv('get', 'project');
+    if (p) {
+      addItems(DP.projectFromJson(p), null, true);
+      const ui = JSON.parse((await kv('get', 'ui')) || '{}');
+      state.x = ui.x || ''; state.y = ui.y || '';
+      state.open = new Set((ui.open || []).filter(n => fm.nodes.has(n)));
+      state.selected = (ui.selected || []).filter(n => fm.nodes.has(n));
+      if (ui.scaleX) $('#scaleX').value = ui.scaleX;
+      if (ui.scaleY) $('#scaleY').value = ui.scaleY;
+      ['markers', 'grid', 'legend'].forEach(k => { if (k in ui) $('#opt' + k[0].toUpperCase() + k.slice(1)).checked = ui[k]; });
+      restored = fm.nodes.size > 0;
+    }
+  } catch (e) { /* no stored session */ }
+  if (restored) log('已恢复上次的工作区');
+  else {
+    addItems(exampleItems(), null, true);
+    state.selected = [EXAMPLE];
+    state.x = 'B'; state.y = 'Hall1';
+    log('载入了示例数据。点“导入”打开你自己的文件');
+  }
+  renderTree(); updateColumns(); plot();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => plot());
+// redraw when the plot box changes size (rotation, split view, fonts settling)
+let lastW = 0, resizeTimer;
+new ResizeObserver(entries => {
+  const w = Math.round(entries[0].contentRect.width);
+  if (Math.abs(w - lastW) < 2) return;
+  lastW = w;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (state.traceFiles.length) plot(); }, 120);
+}).observe($('#plot'));
+new MutationObserver(() => plot()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+start();
+})();
+</script>

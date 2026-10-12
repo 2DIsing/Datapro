@@ -1,0 +1,2076 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0a6c80">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="DataPro">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<style>
+/* what the artifact host used to provide around the page */
+:root { color-scheme: light; padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+body { margin: 0; font-size: 14px; }
+img { max-width: 100%; }
+[hidden] { display: none !important; }
+</style>
+<script>
+if ('serviceWorker' in navigator) addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+</script>
+</head>
+<body>
+<title>DataPro</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: phone = one column (files, plot, tools); tablet/desktop = files+tools rail on the left, plot fills the rest. */
+:root {
+  --bg: #f3f5f6; --panel: #ffffff; --ink: #172026; --muted: #5a6670; --line: #d9dfe3; --soft: #e9eef1;
+  --accent: #0a6c80; --accent-ink: #ffffff; --accent-soft: #d8edf1; --danger: #b42318; --mark: #e8590c;
+  --font: "IBM Plex Sans", -apple-system, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r: 8px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1316; --panel: #171c20; --ink: #e5eaed; --muted: #94a1aa; --line: #2a3238; --soft: #20272c;
+  --accent: #4db3c9; --accent-ink: #06191e; --accent-soft: #163840; --danger: #f2766b; --mark: #ff8f4d; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f1316; --panel: #171c20; --ink: #e5eaed; --muted: #94a1aa; --line: #2a3238; --soft: #20272c;
+  --accent: #4db3c9; --accent-ink: #06191e; --accent-soft: #163840; --danger: #f2766b; --mark: #ff8f4d; color-scheme: dark; }
+
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--font); -webkit-text-size-adjust: 100%; }
+button, input, select { font: inherit; color: inherit; }
+.wrap { padding-inline: 16px; padding-block: 12px 24px; max-width: 1500px; margin: 0 auto; }
+
+header.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding-block: 4px 12px; }
+.brand { display: flex; align-items: baseline; gap: 8px; margin-right: auto; }
+.brand b { font-weight: 600; font-size: 19px; letter-spacing: .01em; }
+.brand span { color: var(--muted); font-size: 13px; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: var(--r); padding: 8px 12px; min-height: 40px;
+  cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, .seg button:focus-visible, .tree .item:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 500; }
+.btn.danger { color: var(--danger); }
+.btn.small { min-height: 34px; padding: 5px 10px; font-size: 14px; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn svg { width: 16px; height: 16px; flex: none; }
+
+.layout { display: grid; gap: 12px; grid-template-columns: minmax(0, 1fr); }
+.filescard { order: 1; } .plotcard { order: 2; } .toolscard { order: 3; }
+@media (min-width: 900px) {
+  .layout { grid-template-columns: 340px minmax(0, 1fr); grid-template-rows: auto 1fr; align-items: start; }
+  .filescard { grid-column: 1; grid-row: 1; }
+  .toolscard { grid-column: 1; grid-row: 2; }
+  .plotcard { grid-column: 2; grid-row: 1 / span 2; }
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; min-width: 0; }
+.card > h2 { font-size: 12px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted);
+  margin: 0; padding: 10px 12px 0; display: flex; align-items: center; gap: 8px; }
+.card > h2 .count { font-family: var(--mono); letter-spacing: 0; text-transform: none; font-weight: 400; }
+.pad { padding: 10px 12px 12px; }
+/* file tree */
+.tree { max-height: 34vh; overflow: auto; padding: 4px 6px 6px; overscroll-behavior: contain; }
+@media (min-width: 900px) { .tree { max-height: 52vh; } }
+.tree .item { display: flex; align-items: center; gap: 6px; padding: 6px 6px; border-radius: 6px; cursor: pointer; min-height: 38px;
+  user-select: none; -webkit-user-select: none; }
+.tree .item:hover { background: var(--soft); }
+.tree .item.sel { background: var(--accent-soft); }
+.tree .tick { width: 18px; height: 18px; border: 1.5px solid var(--line); border-radius: 5px; flex: none; display: grid; place-items: center; }
+.tree .item.sel .tick { background: var(--accent); border-color: var(--accent); }
+.tree .item.sel .tick::after { content: ""; width: 9px; height: 5px; border: 2px solid var(--accent-ink); border-top: 0; border-right: 0; transform: translateY(-1px) rotate(-45deg); }
+.tree .caret { width: 26px; height: 26px; border: 0; background: none; border-radius: 5px; flex: none; display: grid; place-items: center; cursor: pointer; color: var(--muted); padding: 0; }
+.tree .caret svg { width: 14px; height: 14px; transition: transform .15s; }
+.tree .caret.open svg { transform: rotate(90deg); }
+.tree .spacer { width: 26px; flex: none; }
+.tree .name { min-width: 0; flex: 1; overflow: hidden; overflow-wrap: anywhere; line-height: 1.3;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.tree .folder .name { font-weight: 500; }
+.tree .meta { font: 12px var(--mono); color: var(--muted); flex: none; }
+.tree .badge { font-size: 11px; color: var(--mark); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; flex: none; }
+.empty { color: var(--muted); padding: 14px 8px; font-size: 14px; }
+.treebar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px 10px; border-top: 1px solid var(--line); }
+
+/* plot */
+.plotcard { display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.plotbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 10px 12px 0; }
+.field { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.field > span { font-size: 13px; color: var(--muted); }
+select, input[type=text], input[type=number] { background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 6px 8px;
+  min-height: 36px; max-width: 100%; min-width: 0; }
+select.col { width: 150px; }
+#plot { height: 58vh; min-height: 300px; width: 100%; }
+#plot.gesture { touch-action: none; -webkit-user-select: none; user-select: none; }
+@media (min-width: 900px) { #plot { height: calc(100vh - 210px); min-height: 420px; } }
+.plotfoot { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; padding: 0 12px 12px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--r); overflow: hidden; }
+.seg button { border: 0; background: var(--panel); padding: 6px 10px; min-height: 36px; cursor: pointer; font-size: 14px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+.chk { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; color: var(--muted); cursor: pointer; }
+.chk input { width: 16px; height: 16px; accent-color: var(--accent); }
+.selinfo { font: 13px var(--mono); color: var(--mark); }
+.plotempty { display: grid; place-items: center; height: 100%; color: var(--muted); text-align: center; padding: 20px; }
+
+.tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.tools .btn { justify-content: center; }
+
+.status { font-size: 13px; color: var(--muted); padding: 8px 2px 0; display: flex; gap: 8px; align-items: baseline; }
+.status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); flex: none; transform: translateY(-1px); }
+.status.err .dot { background: var(--danger); }
+.status button { border: 0; background: none; color: var(--accent); cursor: pointer; padding: 0; font-size: 13px; margin-left: auto; flex: none; }
+.log { font: 12px/1.5 var(--mono); color: var(--muted); max-height: 180px; overflow: auto; white-space: pre-wrap; padding: 6px 2px; }
+
+/* sheets */
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .35); z-index: 50; display: flex; align-items: flex-end; justify-content: center; }
+.sheet { background: var(--panel); width: 100%; max-width: 520px; border-radius: 14px 14px 0 0; max-height: 88vh; overflow: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -8px 30px rgb(0 0 0 / .18); }
+@media (min-width: 640px) { .scrim { align-items: center; } .sheet { border-radius: 14px; } }
+.sheet h3 { margin: 0 0 4px; font-size: 18px; font-weight: 600; text-wrap: balance; }
+.sheet .sub { color: var(--muted); font-size: 14px; margin: 0 0 12px; }
+.sheet fieldset { border: 0; padding: 0; margin: 0 0 14px; display: grid; gap: 6px; min-width: 0; }
+.sheet legend { font-size: 13px; font-weight: 600; color: var(--muted); padding: 0; margin-bottom: 4px; }
+.sheet label.opt { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; cursor: pointer; }
+.sheet label.opt:has(input:checked) { border-color: var(--accent); background: var(--accent-soft); }
+.sheet label.opt input { accent-color: var(--accent); }
+.sheet .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.sheet .grid2 label { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.sheet .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 6px; flex-wrap: wrap; }
+.sheet .list { font: 13px var(--mono); background: var(--soft); border-radius: 8px; padding: 8px 10px; max-height: 160px; overflow: auto; }
+.sheet .list div { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sheet .menu { display: grid; gap: 8px; }
+.sheet .menu .btn { justify-content: flex-start; min-height: 48px; }
+.sheet .menu .btn small { color: var(--muted); margin-left: auto; font-size: 12px; }
+.note { font-size: 13px; color: var(--muted); }
+
+.toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
+  background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: 9px; font-size: 14px; max-width: calc(100% - 32px);
+  box-shadow: 0 6px 20px rgb(0 0 0 / .2); }
+.busy { position: fixed; inset: 0; z-index: 70; display: grid; place-items: center; background: rgb(0 0 0 / .25); }
+.busy div { background: var(--panel); border: 1px solid var(--line); padding: 14px 18px; border-radius: 10px; font-size: 14px; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand"><b>DataPro</b><span>输运数据处理 · 网页版</span></div>
+    <div class="row">
+      <button class="btn primary" id="btnImport" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg>导入</button>
+      <button class="btn" id="btnExport" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2.5 13.5h11"/></svg>导出</button>
+      <input type="file" id="fileInput" multiple hidden>
+    </div>
+  </header>
+
+  <div class="layout">
+      <section class="card filescard">
+        <h2>文件 <span class="count" id="treeCount"></span></h2>
+        <div class="tree" id="tree" role="tree" aria-label="文件"></div>
+        <div class="treebar">
+          <button class="btn small" id="btnSelAll" type="button">全选</button>
+          <button class="btn small" id="btnSelNone" type="button">取消选择</button>
+          <button class="btn small" id="btnFolder" type="button">新建文件夹</button>
+          <button class="btn small" id="btnRename" type="button">重命名</button>
+          <button class="btn small" id="btnMove" type="button">移动到</button>
+          <button class="btn small danger" id="btnDelete" type="button">删除</button>
+        </div>
+      </section>
+      <section class="card toolscard">
+        <h2>处理</h2>
+        <div class="pad tools">
+          <button class="btn" id="btnSym" type="button">对称化</button>
+          <button class="btn" id="btnAnti" type="button">反对称化</button>
+          <button class="btn" id="btnSplit" type="button">拆分 sweep</button>
+          <button class="btn" id="btnMerge" type="button">合并 sweep</button>
+          <button class="btn" id="btnReset" type="button">还原数据</button>
+          <button class="btn" id="btnCopy" type="button">复制 X/Y</button>
+        </div>
+      </section>
+
+    <section class="card plotcard">
+      <div class="plotbar">
+        <label class="field"><span>X</span><select class="col" id="selX"></select></label>
+        <label class="field"><span>Y</span><select class="col" id="selY"></select></label>
+        <label class="field"><span>X 轴</span><select id="scaleX"><option value="linear">线性</option><option value="log">对数</option></select></label>
+        <label class="field"><span>Y 轴</span><select id="scaleY"><option value="linear">线性</option><option value="log">对数</option></select></label>
+        <label class="chk"><input type="checkbox" id="optMarkers" checked>点</label>
+        <label class="chk"><input type="checkbox" id="optGrid" checked>网格</label>
+        <label class="chk"><input type="checkbox" id="optLegend" checked>图例</label>
+      </div>
+      <div id="plot"></div>
+      <div class="plotfoot">
+        <div class="seg" id="modeSeg" role="group" aria-label="触摸操作">
+          <button type="button" data-mode="gesture" aria-pressed="true">手势</button>
+          <button type="button" data-mode="zoom" aria-pressed="false">框放大</button>
+          <button type="button" data-mode="select" aria-pressed="false">框选</button>
+          <button type="button" data-mode="lasso" aria-pressed="false">套索</button>
+          <button type="button" data-mode="tap" aria-pressed="false">点选</button>
+        </div>
+        <button class="btn small" id="btnAuto" type="button">复位视图</button>
+        <span class="selinfo" id="selInfo"></span>
+        <button class="btn small danger" id="btnDelPts" type="button" hidden>删除选中点</button>
+        <button class="btn small" id="btnClearPts" type="button" hidden>清除选择</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="status" id="status"><span class="dot"></span><span id="statusText">准备就绪</span><button type="button" id="btnLog">记录</button></div>
+  <div class="log" id="log" hidden></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script>
+// DataPro web core: data model, file parsers and processing.
+// Ported from "datapro 20260916.py"; every function mirrors the desktop one named in its comment.
+(function (root) {
+  'use strict';
+
+  // ---------------------------------------------------------------- tables
+  // A table is {columns: string[], data: {col: array}}; numeric columns hold numbers (NaN for missing).
+
+  function nrows(t) {
+    return t.columns.length ? t.data[t.columns[0]].length : 0;
+  }
+
+  function makeTable(columns, colArrays) {
+    const data = {};
+    columns.forEach((c, i) => { data[c] = colArrays[i]; });
+    return { columns: columns.slice(), data };
+  }
+
+  function cloneTable(t) {
+    const data = {};
+    t.columns.forEach(c => { data[c] = t.data[c].slice(); });
+    return { columns: t.columns.slice(), data };
+  }
+
+  function takeRows(t, idx) {
+    const data = {};
+    t.columns.forEach(c => { const a = t.data[c]; data[c] = idx.map(i => a[i]); });
+    return { columns: t.columns.slice(), data };
+  }
+
+  function sliceRows(t, start, end) {
+    const data = {};
+    t.columns.forEach(c => { data[c] = t.data[c].slice(start, end); });
+    return { columns: t.columns.slice(), data };
+  }
+
+  // pd.to_numeric(errors='coerce') for one value
+  function toNum(v) {
+    if (typeof v === 'number') return v;
+    if (typeof v === 'boolean') return v ? 1 : 0;
+    if (v === null || v === undefined) return NaN;
+    const s = String(v).trim();
+    if (s === '') return NaN;
+    const l = s.toLowerCase();
+    if (l === 'nan' || l === 'na' || l === 'null' || l === 'none') return NaN;
+    if (l === 'inf' || l === '+inf' || l === 'infinity' || l === '+infinity') return Infinity;
+    if (l === '-inf' || l === '-infinity') return -Infinity;
+    if (!/^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$/.test(s)) return NaN;
+    return Number(s);
+  }
+
+  function isMissing(v) {
+    return v === null || v === undefined || (typeof v === 'number' && Number.isNaN(v));
+  }
+
+  // df.dropna(axis=1, how='all') then df.dropna(how='all')
+  function dropAllNa(t, missing = isMissing) {
+    const cols = t.columns.filter(c => !t.data[c].every(missing));
+    const n = nrows(t);
+    const keep = [];
+    for (let i = 0; i < n; i++) if (!cols.every(c => missing(t.data[c][i]))) keep.push(i);
+    return takeRows({ columns: cols, data: t.data }, keep);
+  }
+
+  function dedupeColumns(cols) {
+    const seen = {};
+    return cols.map(c => {
+      if (!(c in seen)) { seen[c] = 0; return c; }
+      let k = ++seen[c];
+      while ((c + '.' + k) in seen) k++;
+      seen[c + '.' + k] = 0;
+      return c + '.' + k;
+    });
+  }
+
+  // --------------------------------------------------------- text loading
+  const COLUMN_INDICATORS = ['outputv', 'time', 'temp', 'volt', 'current', 'b', 't1', 't2', 'i', 'x1',
+    'angle', 'hall', 'gate', 'leak'];
+
+  function splitFields(line) {
+    return line.includes('\t') ? line.split('\t') : line.trim().split(/\s+/).filter(Boolean);
+  }
+
+  // detect_data_structure
+  function detectDataStructure(rawLines, maxCheckRows = 10) {
+    const lines = rawLines.slice(0, maxCheckRows).map(l => l.trim());
+    let header = null, headerIdx = null;
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      if (!line) continue;
+      const parts = splitFields(line);
+      if (parts.length < 3) continue;
+      const low = line.toLowerCase();
+      if (['am', 'pm', 'frequency', 'stop at', 'hz', 'db/oct'].some(k => low.includes(k))) continue;
+      let valid = 0;
+      for (const part of parts) {
+        const p = part.toLowerCase().trim();
+        if (COLUMN_INDICATORS.some(ind => p.includes(ind))) valid++;
+        else if (p.length <= 10 && p.length > 0 && /^\p{L}+$/u.test(p)) valid++;
+        else if (p.length <= 8 && /\p{L}/u.test(p) && /\d/.test(p)) valid++;
+      }
+      if (valid >= parts.length * 0.7 && parts.length > 5) { header = parts; headerIdx = i; break; }
+    }
+    if (!header) return null;
+    const cols = header.map(c => c.trim()).filter(Boolean);
+    let start = headerIdx + 1;
+    while (start < lines.length) {
+      const line = lines[start];
+      if (!line) { start++; continue; }
+      const parts = splitFields(line);
+      if (parts.length === cols.length) {
+        let matches = 0;
+        parts.forEach((p, i) => { if (i < cols.length && p.trim().toLowerCase() === cols[i].toLowerCase()) matches++; });
+        if (matches >= cols.length * 0.8) { start++; continue; }
+      }
+      const numeric = parts.filter(p => !Number.isNaN(toNum(p)) || /^[+-]?(nan|inf)/i.test(p.trim())).length;
+      if (numeric >= parts.length * 0.5) break;
+      start++;
+    }
+    return { columns: cols, dataStart: start };
+  }
+
+  // raw=true keeps the strings, as pd.read_csv does before pd.to_numeric
+  function rowsToTable(columns, rows, raw = false) {
+    let width = 0;
+    for (const r of rows) if (r.length > width) width = r.length;
+    let cols = columns;
+    let used = width;
+    if (cols.length <= width) used = cols.length;
+    else cols = cols.slice(0, width);
+    const arrays = cols.map(() => []);
+    for (const r of rows) for (let j = 0; j < used; j++) arrays[j].push(raw ? (r[j] === undefined ? '' : r[j]) : toNum(r[j]));
+    return makeTable(dedupeColumns(cols), arrays);
+  }
+
+  // pandas' default NA strings
+  const NA_STRINGS = new Set(['', '#N/A', '#N/A N/A', '#NA', '-1.#IND', '-1.#QNAN', '-NaN', '-nan', '1.#IND', '1.#QNAN',
+    '<NA>', 'N/A', 'NA', 'NULL', 'NaN', 'None', 'n/a', 'nan', 'null']);
+  const isRawMissing = v => (typeof v === 'string' ? NA_STRINGS.has(v.trim()) : isMissing(v));
+
+  // csv.Sniffer-style fallback used by pd.read_csv(sep=None)
+  function sniffDelimited(lines) {
+    const body = lines.filter(l => l.trim() !== '');
+    if (!body.length) return null;
+    const sample = body.slice(0, 20);
+    let best = null;
+    for (const d of [',', '\t', ';', '|']) {
+      const counts = sample.map(l => l.split(d).length - 1);
+      if (counts[0] > 0 && counts.every(c => c === counts[0])) { best = d; break; }
+    }
+    const split = best ? (l => l.split(best).map(s => s.trim().replace(/^"(.*)"$/, '$1'))) : (l => l.trim().split(/\s+/));
+    const header = split(body[0]).map(s => s.trim());
+    const rows = body.slice(1).map(split);
+    return rowsToTable(header.map((h, i) => h || 'Unnamed: ' + i), rows, true);
+  }
+
+  // load_text_file
+  function parseTextFile(text) {
+    const lines = text.replace(/^﻿/, '').split(/\r?\n/);
+    const det = detectDataStructure(lines);
+    let t;
+    if (det) {
+      const sample = lines[det.dataStart] || '';
+      const tab = sample.includes('\t');
+      const rows = [];
+      for (let i = det.dataStart; i < lines.length; i++) {
+        const l = lines[i];
+        if (l.trim() === '') continue;
+        rows.push(tab ? l.split('\t') : l.trim().split(/\s+/));
+      }
+      t = rowsToTable(det.columns, rows, true);
+    } else {
+      t = sniffDelimited(lines);
+      if (!t) throw new Error('文件里没有可读的数据行');
+    }
+    t = dropAllNa(t, isRawMissing);
+    const clean = dedupeColumns(t.columns.map(c => String(c).trim()));
+    return makeTable(clean, t.columns.map(c => t.data[c].map(toNum)));
+  }
+
+  // load_hk_file -> {runs: [{name, table}], skipped}
+  function parseHkFile(text) {
+    const all = text.replace(/^﻿/, '').split(/\r?\n/);
+    const runNames = [];
+    let dataStart = null;
+    for (let i = 0; i < all.length; i++) {
+      const s = all[i].trim();
+      if (s === 'Below is data') { dataStart = i + 1; break; }
+      if (s) runNames.push(s.split('\t')[0].trim());
+    }
+    if (dataStart === null) throw new Error("没有找到 'Below is data' 标记，不是 HK 文件");
+    const blocks = [];
+    let cur = [], inBlock = false;
+    for (let i = dataStart; i < all.length; i++) {
+      const line = all[i], s = line.trim();
+      if (s.startsWith('GAPComment:')) {
+        if (cur.length) blocks.push(cur);
+        cur = ['Comment:' + s.slice('GAPComment:'.length)]; inBlock = true;
+      } else if (s.startsWith('Comment:')) {
+        if (cur.length) blocks.push(cur);
+        cur = [line]; inBlock = true;
+      } else if (s === 'GAP') {
+        if (cur.length) { blocks.push(cur); cur = []; }
+        inBlock = false;
+      } else if (inBlock) cur.push(line);
+    }
+    if (cur.length) blocks.push(cur);
+    if (!blocks.length) throw new Error('HK 文件里没有数据块');
+
+    const runs = [];
+    let skipped = 0;
+    blocks.forEach((block, bi) => {
+      const runName = bi < runNames.length ? runNames[bi] : 'run_' + (bi + 1);
+      let header = null;
+      const rows = [];
+      for (const line of block) {
+        const s = line.trim();
+        if (s.startsWith('Header:')) header = s.slice(7).trim().split('\t').map(c => c.trim()).filter(Boolean);
+        else if (s.startsWith('Data:')) rows.push(s.slice(5).trim().split('\t'));
+        else if (header && s && !s.startsWith('Comment:')) {
+          const parts = s.split('\t');
+          if (parts.length >= 2) rows.push(parts);
+        }
+      }
+      if (!header || !rows.length) { skipped++; return; }
+      let t = rowsToTable(header, rows);
+      const n = nrows(t), keep = [];
+      for (let i = 0; i < n; i++) if (!t.columns.every(c => isMissing(t.data[c][i]))) keep.push(i);
+      t = takeRows(t, keep);
+      let display = 'run_' + (bi + 1);
+      const parts = runName.split(/\s+/);
+      for (let j = 0; j < parts.length; j++) {
+        const p = parts[j];
+        if (p.includes('-') && p.length >= 8 && /\d/.test(p)) {
+          const tp = parts.slice(j).filter(q => q.includes('-') && /\d/.test(q));
+          display = tp.length >= 2 ? `run_${bi + 1} (${tp[0]} ${tp[1]})` : `run_${bi + 1} (${tp[0]})`;
+          break;
+        }
+      }
+      runs.push({ name: display, table: t });
+    });
+    return { runs, skipped, blocks: blocks.length };
+  }
+
+  // ------------------------------------------------------------- HDF5 read
+  // pandas/PyTables keep column lists as protocol-0 pickles: (lp0\nVname\np1\naV...
+  function parsePickledStrList(s) {
+    if (typeof s !== 'string') return null;
+    const out = [];
+    for (const m of s.matchAll(/(?:^|\n)[(at]*V([^\n]*)/g))
+      out.push(m[1].replace(/\\u([0-9a-fA-F]{4})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/\\x([0-9a-fA-F]{2})/g, (_, h) => String.fromCharCode(parseInt(h, 16)))
+        .replace(/\\\\/g, '\\'));
+    return out;
+  }
+
+  function attr(node, name) {
+    try { const a = node.attrs[name]; return a ? a.value : undefined; } catch (e) { return undefined; }
+  }
+
+  function plainValue(v) {
+    if (typeof v === 'bigint') return Number(v);
+    if (typeof v === 'string') return v.replace(/\0+$/, '');
+    return v;
+  }
+
+  // pandas format='table' frame stored in group g
+  function readPandasTable(g) {
+    const t = g.get('table');
+    const rows = t.value;
+    const fields = t.dtype.map(d => d[0]);
+    const cols = {};
+    fields.forEach((fname, fi) => {
+      if (fname === 'index') return;
+      const names = parsePickledStrList(attr(t, fname + '_kind')) || [fname];
+      names.forEach((n, j) => {
+        cols[n] = rows.map(r => {
+          const cell = r[fi];
+          return plainValue(Array.isArray(cell) || ArrayBuffer.isView(cell) ? cell[j] : cell);
+        });
+      });
+    });
+    const order = parsePickledStrList(attr(g, 'non_index_axes')) || Object.keys(cols);
+    const columns = order.filter(c => c in cols);
+    Object.keys(cols).forEach(c => { if (!columns.includes(c)) columns.push(c); });
+    return makeTable(columns, columns.map(c => cols[c]));
+  }
+
+  function datasetStrings(ds) {
+    return Array.from(ds.value, v => String(plainValue(v)));
+  }
+
+  // pandas format='fixed' frame stored in group g
+  function readPandasFixed(g) {
+    const columns = datasetStrings(g.get('axis0'));
+    const n = g.get('axis1').shape[0];
+    const nblocks = Number(attr(g, 'nblocks') || 0);
+    const cols = {};
+    for (let b = 0; b < nblocks; b++) {
+      const items = datasetStrings(g.get(`block${b}_items`));
+      const vds = g.get(`block${b}_values`);
+      const flat = Array.from(vds.value, plainValue);
+      const shape = vds.shape;
+      // stored as (rows, items); "transposed" layout stores (items, rows)
+      const rowMajor = shape.length === 2 && shape[0] === n && shape[1] === items.length;
+      items.forEach((it, j) => {
+        const a = new Array(n);
+        for (let i = 0; i < n; i++) a[i] = rowMajor ? flat[i * items.length + j] : flat[j * n + i];
+        cols[it] = a;
+      });
+    }
+    const cs = columns.filter(c => c in cols);
+    return makeTable(cs, cs.map(c => cols[c]));
+  }
+
+  function readPandasGroup(g) {
+    const kind = attr(g, 'pandas_type');
+    if (kind === 'frame_table') return readPandasTable(g);
+    if (kind === 'frame') return readPandasFixed(g);
+    if (g.keys().includes('table')) return readPandasTable(g);
+    throw new Error('不支持的 pandas 存储格式: ' + kind);
+  }
+
+  // all pandas objects in the file, keyed like HDFStore.keys()
+  function hdfStoreKeys(f) {
+    const out = [];
+    (function walk(g, path) {
+      for (const k of g.keys()) {
+        const child = g.get(k);
+        if (!child || child.type !== 'Group') continue;
+        const p = path + '/' + k;
+        if (attr(child, 'pandas_type') !== undefined) out.push(p);
+        else walk(child, p);
+      }
+    })(f, '');
+    return out;
+  }
+
+  // load_hdf5_file -> list of {name, isFolder, parent, table} in insertion order
+  function readHdfProject(f, fileBaseName) {
+    const keys = hdfStoreKeys(f);
+    const items = [];
+    if (keys.includes('/__metadata__')) {
+      const m = readPandasGroup(f.get('__metadata__'));
+      const n = nrows(m);
+      const rows = [];
+      for (let i = 0; i < n; i++) {
+        const r = {};
+        m.columns.forEach(c => { r[c] = m.data[c][i]; });
+        r.depth = String(r.path).split('/').length;
+        r.i = i;
+        rows.push(r);
+      }
+      const hasOrder = m.columns.includes('order');
+      rows.sort((a, b) => a.depth - b.depth || (hasOrder ? a.order - b.order : 0) || a.i - b.i);
+      for (const r of rows) {
+        const parent = r.parent_folder ? String(r.parent_folder) : null;
+        if (r.is_folder === true || r.is_folder === 1) {
+          items.push({ name: String(r.name), isFolder: true, parent });
+        } else {
+          const safe = String(r.path).replace(/\\/g, '/').split('/').join('__').split('.').join('_').split(' ').join('_');
+          const key = '/data/' + safe;
+          if (keys.includes(key)) items.push({ name: String(r.name), isFolder: false, parent, table: readPandasGroup(f.get(key.slice(1))) });
+        }
+      }
+      return { structured: true, items };
+    }
+    items.push({ name: fileBaseName, isFolder: true, parent: null });
+    for (const k of keys) {
+      if (k.startsWith('/_metadata')) continue;
+      items.push({ name: k.replace(/^\/+|\/+$/g, ''), isFolder: false, parent: fileBaseName, table: readPandasGroup(f.get(k.slice(1))) });
+    }
+    return { structured: false, items };
+  }
+
+  // ---------------------------------------------------------- interpolation
+  function argsortStable(x) {
+    return x.map((v, i) => i).sort((a, b) => (x[a] - x[b]) || (a - b));
+  }
+
+  function linspace(a, b, n) {
+    if (n <= 0) return [];
+    if (n === 1) return [a];
+    const out = new Array(n), step = (b - a) / (n - 1);
+    for (let i = 0; i < n; i++) out[i] = a + i * step;
+    out[n - 1] = b;
+    return out;
+  }
+
+  function searchsortedRight(a, v) {
+    let lo = 0, hi = a.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (a[mid] <= v) lo = mid + 1; else hi = mid; }
+    return lo;
+  }
+
+  // scipy.interpolate.interp1d(kind='linear', bounds_error=False, fill_value=0);
+  // scipy delegates this case to numpy.interp and fills out-of-bounds points afterwards
+  function makeLinear(xIn, yIn) {
+    const ord = argsortStable(xIn);
+    const x = ord.map(i => xIn[i]), y = ord.map(i => yIn[i]);
+    const n = x.length;
+    return xn => {
+      if (Number.isNaN(xn)) return NaN;
+      if (n === 0 || xn < x[0] || xn > x[n - 1]) return 0;
+      return npInterp(xn, x, y);
+    };
+  }
+
+  // scipy.interpolate.interp1d(kind='cubic'): not-a-knot cubic spline; throws where scipy raises
+  function makeCubic(xIn, yIn) {
+    const ord = argsortStable(xIn);
+    const x = ord.map(i => xIn[i]), y = ord.map(i => yIn[i]);
+    const n = x.length;
+    if (n < 4) throw new Error('cubic needs at least 4 points');
+    for (let i = 1; i < n; i++) if (!(x[i] > x[i - 1])) throw new Error('duplicate x');
+    const h = [];
+    for (let i = 0; i < n - 1; i++) h.push(x[i + 1] - x[i]);
+    // interior second-derivative equations: a M[i-1] + b M[i] + c M[i+1] = d, i = 1..n-2
+    const a = new Array(n).fill(0), b = new Array(n).fill(0), c = new Array(n).fill(0), d = new Array(n).fill(0);
+    for (let i = 1; i < n - 1; i++) {
+      a[i] = h[i - 1]; b[i] = 2 * (h[i - 1] + h[i]); c[i] = h[i];
+      d[i] = 6 * ((y[i + 1] - y[i]) / h[i] - (y[i] - y[i - 1]) / h[i - 1]);
+    }
+    // not-a-knot ends express M[0] and M[n-1] through their neighbours:
+    //   M0 = ((h0+h1) M1 - h0 M2) / h1,  M[n-1] = ((h[n-3]+h[n-2]) M[n-2] - h[n-2] M[n-3]) / h[n-3]
+    const L1 = (h[0] + h[1]) / h[1], L2 = -h[0] / h[1];
+    const R1 = (h[n - 3] + h[n - 2]) / h[n - 3], R2 = -h[n - 2] / h[n - 3];
+    b[1] += a[1] * L1; c[1] += a[1] * L2; a[1] = 0;
+    b[n - 2] += c[n - 2] * R1; a[n - 2] += c[n - 2] * R2; c[n - 2] = 0;
+    // Thomas algorithm on rows 1..n-2 (diagonally dominant after the substitution)
+    const cp = new Array(n), dp = new Array(n), M = new Array(n);
+    cp[1] = c[1] / b[1]; dp[1] = d[1] / b[1];
+    for (let i = 2; i < n - 1; i++) {
+      const m = b[i] - a[i] * cp[i - 1];
+      cp[i] = c[i] / m; dp[i] = (d[i] - a[i] * dp[i - 1]) / m;
+    }
+    M[n - 2] = dp[n - 2];
+    for (let i = n - 3; i >= 1; i--) M[i] = dp[i] - cp[i] * M[i + 1];
+    M[0] = L1 * M[1] + L2 * M[2];
+    M[n - 1] = R1 * M[n - 2] + R2 * M[n - 3];
+    return xn => {
+      if (Number.isNaN(xn)) return NaN;
+      if (xn < x[0] || xn > x[n - 1]) return 0;
+      let i = searchsortedRight(x, xn) - 1;
+      i = Math.min(Math.max(i, 0), n - 2);
+      const hi = h[i], A = (x[i + 1] - xn) / hi, B = (xn - x[i]) / hi;
+      return A * y[i] + B * y[i + 1] + ((A * A * A - A) * M[i] + (B * B * B - B) * M[i + 1]) * hi * hi / 6;
+    };
+  }
+
+  function makeInterp(x, y, method) {
+    if (method === 'cubic') { try { return makeCubic(x, y); } catch (e) { /* scipy raised: fall back */ } }
+    return makeLinear(x, y);
+  }
+
+  // numpy.interp (xp increasing), including its handling of repeated xp values
+  function npInterp(xv, xp, fp) {
+    const n = xp.length;
+    if (Number.isNaN(xv)) return NaN;
+    if (n === 1) return fp[0];
+    if (xv < xp[0]) return fp[0];
+    if (xv > xp[n - 1]) return fp[n - 1];
+    if (xv === xp[n - 1]) return fp[n - 1];
+    const j = searchsortedRight(xp, xv) - 1;
+    if (xp[j] === xv) return fp[j];
+    const slope = (fp[j + 1] - fp[j]) / (xp[j + 1] - xp[j]);
+    let r = slope * (xv - xp[j]) + fp[j];
+    if (Number.isNaN(r)) {
+      r = slope * (xv - xp[j + 1]) + fp[j + 1];
+      if (Number.isNaN(r) && fp[j] === fp[j + 1]) r = fp[j];
+    }
+    return r;
+  }
+
+  function validXY(t, xCol, yCol) {
+    const xs = t.data[xCol].map(toNum), ys = t.data[yCol].map(toNum);
+    const x = [], y = [];
+    for (let i = 0; i < xs.length; i++) if (!Number.isNaN(xs[i]) && !Number.isNaN(ys[i])) { x.push(xs[i]); y.push(ys[i]); }
+    return { x, y, xAll: xs };
+  }
+
+  function minMax(a) {
+    let lo = Infinity, hi = -Infinity;
+    for (const v of a) { if (v < lo) lo = v; if (v > hi) hi = v; }
+    return [lo, hi];
+  }
+
+  // _sweep_directions: +1/-1 per point in measurement order, from the 5-point smoothed np.gradient
+  function sweepDirections(x) {
+    const n = x.length;
+    if (n < 2) return new Array(n).fill(1);
+    const g = x.map((v, i) => (i === 0 ? x[1] - x[0] : i === n - 1 ? x[n - 1] - x[n - 2] : (x[i + 1] - x[i - 1]) / 2));
+    const w = Math.min(5, n);
+    // rounding residue of a jitter that cancels out counts as "not moving"
+    let gmax = 0;
+    for (const v of g) if (Math.abs(v) > gmax) gmax = Math.abs(v);
+    const tol = 1e-9 * gmax;
+    const dir = new Array(n);
+    for (let i = 0; i < n; i++) {
+      // pandas rolling(w, center=True, min_periods=1).mean()
+      const s = Math.max(0, i - Math.floor(w / 2)), e = Math.min(n, i - Math.floor(w / 2) + w);
+      let sum = 0;
+      for (let k = s; k < e; k++) sum += g[k];
+      const m = sum / (e - s);
+      dir[i] = Math.abs(m) <= tol ? 0 : Math.sign(m);
+    }
+    let last = 0;
+    for (let i = 0; i < n; i++) { if (dir[i] === 0) dir[i] = last; else last = dir[i]; }
+    const first = dir.find(d => d !== 0) || 1;
+    return dir.map(d => (d === 0 ? first : d));
+  }
+
+  // _averaged_interp: up and down sweeps averaged on the x range both cover -> {f, lo, hi}
+  function averagedInterp(x, y, sweepType, method) {
+    if (sweepType === 'hysteretic') {
+      const dir = sweepDirections(x);
+      const upX = [], upY = [], dnX = [], dnY = [];
+      dir.forEach((d, i) => { if (d > 0) { upX.push(x[i]); upY.push(y[i]); } else if (d < 0) { dnX.push(x[i]); dnY.push(y[i]); } });
+      if (upX.length >= 2 && dnX.length >= 2) {
+        const [ul, uh] = minMax(upX), [dl, dh] = minMax(dnX);
+        const lo = Math.max(ul, dl), hi = Math.min(uh, dh);
+        if (hi > lo) {
+          const fUp = makeInterp(upX, upY, method), fDn = makeInterp(dnX, dnY, method);
+          const xc = linspace(lo, hi, Math.min(upX.length, dnX.length));
+          const yAvg = xc.map(v => (fUp(v) + fDn(v)) / 2);
+          return { f: makeInterp(xc, yAvg, method), lo, hi, single: false };
+        }
+      }
+      const [lo, hi] = minMax(x);
+      return { f: makeInterp(x, y, method), lo, hi, single: true };
+    }
+    const [lo, hi] = minMax(x);
+    return { f: makeInterp(x, y, method), lo, hi, single: false };
+  }
+
+  function withColumn(t, name, values) {
+    const out = cloneTable(t);
+    if (!out.columns.includes(name)) out.columns.push(name);
+    out.data[name] = values;
+    return out;
+  }
+
+  const isAuto = v => v === 'auto' || v === '' || v === undefined || v === null;
+
+  // _symmetric_parts: f(g), f(-g) on g in [-R, R], R limited so both +x and -x are measured
+  function symmetricParts(t, xCol, yCol, sweepType, method, xMin, xMax) {
+    const { x, y, xAll } = validXY(t, xCol, yCol);
+    if (x.length < 3) throw new Error('数据点不足，至少需要 3 个点');
+    const { f, lo, hi, single } = averagedInterp(x, y, sweepType, method);
+    if (!(lo < 0 && 0 < hi)) throw new Error(`${xCol} 的范围 [${lo}, ${hi}] 没有跨过 0，无法对称化`);
+    let r = Math.min(-lo, hi);
+    for (const lim of [xMin, xMax]) if (!isAuto(lim)) r = Math.min(r, Math.abs(Number(lim)));
+    if (!(r > 0)) throw new Error('对称化范围为空');
+    const grid = linspace(-r, r, x.length);
+    return { grid, yPlus: grid.map(f), yMinus: grid.map(v => f(-v)), r, xAll, single };
+  }
+
+  // _on_original_x: back onto the file's own x, NaN outside [-r, r]
+  function onOriginalX(xAll, grid, values, r) {
+    return xAll.map(v => (Math.abs(v) <= r ? npInterp(v, grid, values) : NaN));
+  }
+
+  // symmetrize_data: (f(x) + f(-x))/2
+  function symmetrize(t, xCol, yCol, sweepType, method, xMin, xMax) {
+    const p = symmetricParts(t, xCol, yCol, sweepType, method, xMin, xMax);
+    const name = 'symmetrized_' + yCol;
+    const vals = p.yPlus.map((v, i) => (v + p.yMinus[i]) / 2);
+    return { table: withColumn(t, name, onOriginalX(p.xAll, p.grid, vals, p.r)), column: name, range: p.r, single: p.single };
+  }
+
+  // antisymmetrize_data: (f(x) - f(-x))/2
+  function antisymmetrize(t, xCol, yCol, sweepType, method, xMin, xMax) {
+    const p = symmetricParts(t, xCol, yCol, sweepType, method, xMin, xMax);
+    const name = 'antisymmetrized_' + yCol;
+    const vals = p.yPlus.map((v, i) => (v - p.yMinus[i]) / 2);
+    return { table: withColumn(t, name, onOriginalX(p.xAll, p.grid, vals, p.r)), column: name, range: p.r, single: p.single };
+  }
+
+  // --------------------------------------------------------------- split
+  function fmtE2(v) {
+    const [m, e] = v.toExponential(2).split('e');
+    const sign = e[0] === '-' ? '-' : '+';
+    const digits = e.replace(/^[+-]/, '');
+    return m + 'e' + sign + (digits.length < 2 ? '0' + digits : digits);
+  }
+
+  function nanMean(a) {
+    let s = 0, k = 0;
+    for (const v of a) { const n = toNum(v); if (!Number.isNaN(n)) { s += n; k++; } }
+    return k ? s / k : NaN;
+  }
+
+  // perform_split for one file -> {segments: [{name, table, start, end, direction}], log}
+  function splitSweeps(t, name, fieldCol, opts) {
+    const minPoints = opts.minPoints;
+    const fieldAll = t.data[fieldCol].map(toNum);
+    const keep = [];
+    fieldAll.forEach((v, i) => { if (!Number.isNaN(v)) keep.push(i); });
+    const df = takeRows(t, keep);
+    const field = keep.map(i => fieldAll[i]);
+    const n = field.length;
+    if (n < minPoints * 2) return { segments: [], reason: `数据太短，至少需要 ${minPoints * 2} 个点` };
+
+    const diff = field.map((v, i) => (i === 0 ? NaN : v - field[i - 1]));
+    const w = Math.min(5, Math.floor(n / 10));
+    // pandas rolling(window=w, center=True).mean(): window [i - floor(w/2), i - floor(w/2) + w)
+    const smooth = new Array(n).fill(NaN);
+    for (let i = 0; i < n; i++) {
+      const s = i - Math.floor(w / 2), e = s + w;
+      if (s < 0 || e > n) continue;
+      let sum = 0, ok = true;
+      for (let k = s; k < e; k++) { if (Number.isNaN(diff[k])) { ok = false; break; } sum += diff[k]; }
+      if (ok) smooth[i] = sum / w;
+    }
+    const changes = [];
+    let dir = null;
+    for (let i = 1; i < n; i++) {
+      const v = smooth[i];
+      if (Number.isNaN(v)) continue;
+      let nd;
+      if (v > 0) nd = 'up'; else if (v < 0) nd = 'down'; else continue;
+      if (dir !== null && nd !== dir) changes.push(i);
+      dir = nd;
+    }
+    const bounds = [0, ...changes, n];
+    const filtered = [bounds[0]];
+    for (let i = 1; i < bounds.length; i++) if (bounds[i] - filtered[filtered.length - 1] >= minPoints) filtered.push(bounds[i]);
+    const last = filtered[filtered.length - 1];
+    if (n - last >= minPoints && last !== n) filtered.push(n);
+    else if (n - last < minPoints && filtered.length > 1) filtered[filtered.length - 1] = n;
+    if (filtered.length <= 2) return { segments: [], reason: '没有检测到多段 sweep' };
+
+    const dot = name.lastIndexOf('.');
+    const base = dot >= 0 ? name.slice(0, dot) : name;
+    const ext = dot >= 0 ? name.slice(dot) : '';
+    const segments = [];
+    for (let i = 0; i < filtered.length - 1; i++) {
+      const seg = sliceRows(df, filtered[i], filtered[i + 1]);
+      const fs = seg.data[fieldCol].map(toNum);
+      const direction = fs[fs.length - 1] > fs[0] ? 'up' : 'down';
+      let paramStr = '';
+      if (opts.paramCol && seg.columns.includes(opts.paramCol)) {
+        const m = nanMean(seg.data[opts.paramCol]);
+        if (!Number.isNaN(m)) {
+          const label = opts.paramAbbrev || opts.paramCol;
+          paramStr = (Math.abs(m) >= 1000 || (Math.abs(m) < 0.01 && m !== 0)) ? `${label}=${fmtE2(m)}_` : `${label}=${m.toFixed(3)}_`;
+        }
+      }
+      segments.push({ name: `${paramStr}${base}_sweep${i + 1}_${direction}${ext}`, table: seg, direction,
+        fieldStart: fs[0], fieldEnd: fs[fs.length - 1] });
+    }
+    return { segments };
+  }
+
+  // --------------------------------------------------------------- merge
+  function unionColumns(tables) {
+    const cols = [];
+    for (const t of tables) for (const c of t.columns) if (!cols.includes(c)) cols.push(c);
+    return cols;
+  }
+
+  function concatTables(a, b) {
+    const cols = unionColumns([a, b]);
+    const na = nrows(a), nb = nrows(b);
+    const data = {};
+    for (const c of cols) {
+      const x = a.data[c] || new Array(na).fill(NaN), y = b.data[c] || new Array(nb).fill(NaN);
+      data[c] = x.concat(y);
+    }
+    return { columns: cols, data };
+  }
+
+  function interleaveTables(a, b) {
+    const cols = unionColumns([a, b]);
+    const na = nrows(a), nb = nrows(b), m = Math.max(na, nb);
+    const data = {};
+    cols.forEach(c => { data[c] = []; });
+    const push = (t, i) => cols.forEach(c => data[c].push(t.data[c] ? t.data[c][i] : NaN));
+    for (let j = 0; j < m; j++) { if (j < na) push(a, j); if (j < nb) push(b, j); }
+    return { columns: cols, data };
+  }
+
+  function combine(a, b, strategy) {
+    return strategy === 'interleave' ? interleaveTables(a, b) : concatTables(a, b);
+  }
+
+  // filename stem used by merge_all_files / merge_sequential_pairs
+  function mergeBase(filename) {
+    let base = filename.includes('_sweep') ? filename.split('_sweep')[0] : filename;
+    const parts = base.split('_');
+    if (parts.length > 1 && parts[0].includes('=')) {
+      const joined = parts.slice(1).join('_');
+      base = joined || base;
+    }
+    if (!base || base === 'None') base = 'merged_file';
+    return base;
+  }
+
+  // -> [{name, table, sources, parentOf}] ; getTable(name) returns current table
+  function mergeAll(names, strategy, getTable) {
+    let combined = null, base = 'merged_hysteresis';
+    names.forEach((fn, i) => {
+      const t = getTable(fn);
+      if (!t) return;
+      if (combined === null) {
+        combined = cloneTable(t);
+        if (fn.includes('_sweep')) base = mergeBase(fn);
+      } else combined = combine(combined, t, strategy);
+    });
+    if (!combined) return [];
+    if (!base || base === 'None') base = 'merged_file';
+    return [{ name: `${base}_hysteresis_merged`, table: combined, sources: names, anchor: names[0] }];
+  }
+
+  function mergeSequential(names, strategy, getTable) {
+    const out = [];
+    for (let i = 0; i + 1 < names.length; i += 2) {
+      const a = getTable(names[i]), b = getTable(names[i + 1]);
+      if (!a || !b) continue;
+      out.push({ name: `${mergeBase(names[i])}_hysteresis_pair${out.length + 1}`, table: combine(a, b, strategy),
+        sources: [names[i], names[i + 1]], anchor: names[i] });
+    }
+    return out;
+  }
+
+  function mergeSmart(names, strategy, getTable) {
+    const groups = new Map();
+    for (const fn of names) {
+      let key = 'no_param';
+      if (fn.includes('=')) { const p = fn.split('_')[0]; if (p.includes('=')) key = p; }
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(fn);
+    }
+    const out = [];
+    for (const files of groups.values()) {
+      if (files.length < 2) continue;
+      const ups = files.filter(f => f.includes('_up')), downs = files.filter(f => f.includes('_down'));
+      for (let i = 0; i < Math.min(ups.length, downs.length); i++)
+        out.push(...mergeSequential([ups[i], downs[i]], strategy, getTable));
+    }
+    return out.length ? out : mergeSequential(names, strategy, getTable);
+  }
+
+  // ---------------------------------------------------------------- export
+  function csvCell(v) {
+    if (isMissing(v)) return '';
+    const s = String(v);
+    return /[",\n\r]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+
+  // DataFrame.to_csv(index=False)
+  function toCsv(t) {
+    const lines = [t.columns.map(csvCell).join(',')];
+    const n = nrows(t);
+    for (let i = 0; i < n; i++) lines.push(t.columns.map(c => csvCell(t.data[c][i])).join(','));
+    return lines.join('\n') + '\n';
+  }
+
+  // copy_to_clipboard: X/Y pairs side by side, tab separated
+  function xyColumns(files, xCol, yCol, getTable) {
+    const cols = [], headers = [];
+    for (const fn of files) {
+      const t = getTable(fn);
+      if (!t || !t.columns.includes(xCol) || !t.columns.includes(yCol)) continue;
+      cols.push(t.data[xCol], t.data[yCol]);
+      headers.push(`${fn}_${xCol}`, `${fn}_${yCol}`);
+    }
+    return { cols, headers };
+  }
+
+  function xyTsv(files, xCol, yCol, getTable) {
+    const { cols, headers } = xyColumns(files, xCol, yCol, getTable);
+    if (!cols.length) return null;
+    const m = Math.max(...cols.map(c => c.length));
+    const lines = [headers.join('\t')];
+    for (let i = 0; i < m; i++) lines.push(cols.map(c => (i < c.length && !isMissing(c[i]) ? String(c[i]) : '')).join('\t'));
+    return { text: lines.join('\n'), pairs: cols.length / 2 };
+  }
+
+  // ---------------------------------------------------------- file manager
+  // EnhancedFileManager: names are unique keys; folders hold ordered child names.
+  class FileManager {
+    constructor() { this.nodes = new Map(); this.rootItems = []; }
+
+    _attach(name, parent) {
+      if (parent && this.nodes.has(parent)) this.nodes.get(parent).children.push(name);
+      else this.rootItems.push(name);
+    }
+
+    addFile(filename, table, parent = null) {
+      const original = filename;
+      let counter = 1;
+      while (this.nodes.has(filename)) {
+        const dot = original.lastIndexOf('.');
+        filename = dot >= 0 ? `${original.slice(0, dot)}_${counter}${original.slice(dot)}` : `${original}_${counter}`;
+        counter++;
+      }
+      const p = parent && this.nodes.has(parent) ? parent : null;
+      const node = { name: filename, isFolder: false, parent: p, children: [], data: table, modified: null };
+      this.nodes.set(filename, node);
+      this._attach(filename, p);
+      return node;
+    }
+
+    addFolder(folderName, parent = null) {
+      const original = folderName;
+      let counter = 1;
+      const p = parent && this.nodes.has(parent) ? parent : null;
+      while (this.nodes.has(folderName)) {
+        const ex = this.nodes.get(folderName);
+        if (ex.isFolder && ex.parent === p) return ex;
+        folderName = `${original}_${counter}`;
+        counter++;
+      }
+      const node = { name: folderName, isFolder: true, parent: p, children: [] };
+      this.nodes.set(folderName, node);
+      this._attach(folderName, p);
+      return node;
+    }
+
+    siblings(name) {
+      const n = this.nodes.get(name);
+      return n && n.parent ? this.nodes.get(n.parent).children : this.rootItems;
+    }
+
+    filesRecursive(name) {
+      const n = this.nodes.get(name);
+      if (!n) return [];
+      if (!n.isFolder) return [name];
+      return n.children.flatMap(c => this.filesRecursive(c));
+    }
+
+    isInside(name, folder) {
+      for (let n = this.nodes.get(name); n && n.parent; n = this.nodes.get(n.parent)) if (n.parent === folder) return true;
+      return false;
+    }
+
+    moveItem(name, target, position = -1) {
+      const n = this.nodes.get(name);
+      if (!n || name === target || (target && this.isInside(target, name))) return false;
+      const sib = this.siblings(name);
+      sib.splice(sib.indexOf(name), 1);
+      n.parent = target && this.nodes.has(target) ? target : null;
+      const dest = n.parent ? this.nodes.get(n.parent).children : this.rootItems;
+      if (position >= 0) dest.splice(position, 0, name); else dest.push(name);
+      return true;
+    }
+
+    deleteItem(name) {
+      const n = this.nodes.get(name);
+      if (!n) return;
+      if (n.isFolder) for (const c of n.children.slice()) this.deleteItem(c);
+      const sib = this.siblings(name);
+      const i = sib.indexOf(name);
+      if (i >= 0) sib.splice(i, 1);
+      this.nodes.delete(name);
+    }
+
+    rename(oldName, newName) {
+      if (!newName || oldName === newName || this.nodes.has(newName)) return false;
+      const n = this.nodes.get(oldName);
+      if (!n) return false;
+      const sib = this.siblings(oldName);
+      sib[sib.indexOf(oldName)] = newName;
+      if (n.isFolder) n.children.forEach(c => { this.nodes.get(c).parent = newName; });
+      this.nodes.delete(oldName);
+      n.name = newName;
+      this.nodes.set(newName, n);
+      return true;
+    }
+
+    current(name) {
+      const n = this.nodes.get(name);
+      return n && !n.isFolder ? (n.modified || n.data) : null;
+    }
+
+    update(name, table) {
+      const n = this.nodes.get(name);
+      if (n && !n.isFolder) n.modified = table;
+    }
+
+    reset(name) {
+      const n = this.nodes.get(name);
+      if (n && !n.isFolder && n.modified) { n.modified = null; return true; }
+      return false;
+    }
+
+    // tree order walk: [{name, depth}]
+    walk() {
+      const out = [];
+      const rec = (names, depth) => names.forEach(nm => { out.push({ name: nm, depth }); const n = this.nodes.get(nm); if (n.isFolder) rec(n.children, depth + 1); });
+      rec(this.rootItems, 0);
+      return out;
+    }
+
+    path(name) {
+      const parts = [];
+      for (let n = this.nodes.get(name); n; n = n.parent ? this.nodes.get(n.parent) : null) parts.unshift(n.name);
+      return parts.join('/');
+    }
+  }
+
+  // ------------------------------------------------------- project (JSON)
+  const PROJECT_FORMAT = 'datapro-web-project';
+
+  function encodeCol(a) { return a.map(v => (typeof v === 'number' && !Number.isFinite(v) ? (Number.isNaN(v) ? null : (v > 0 ? 'inf' : '-inf')) : v)); }
+  function decodeCol(a) { return a.map(v => (v === null ? NaN : v === 'inf' ? Infinity : v === '-inf' ? -Infinity : v)); }
+  function encodeTable(t) { return { columns: t.columns, data: t.columns.map(c => encodeCol(t.data[c])) }; }
+  function decodeTable(o) { return makeTable(o.columns, o.data.map(decodeCol)); }
+
+  // export_project equivalent: current data of every file, tree order preserved
+  function projectToJson(fm) {
+    const items = fm.walk().map(({ name }) => {
+      const n = fm.nodes.get(name);
+      const it = { name, is_folder: n.isFolder, parent_folder: n.parent || '' };
+      if (!n.isFolder) it.table = encodeTable(fm.current(name));
+      return it;
+    });
+    return JSON.stringify({ format: PROJECT_FORMAT, version: 1, items });
+  }
+
+  function projectFromJson(text) {
+    const o = JSON.parse(text);
+    if (!o || o.format !== PROJECT_FORMAT) throw new Error('不是 DataPro 网页版的工程文件');
+    return o.items.map(it => ({ name: it.name, isFolder: !!it.is_folder, parent: it.parent_folder || null,
+      table: it.is_folder ? undefined : decodeTable(it.table) }));
+  }
+
+  root.DP = {
+    FileManager, projectToJson, projectFromJson,
+    nrows, makeTable, cloneTable, takeRows, toNum, isMissing,
+    parseTextFile, parseHkFile, detectDataStructure,
+    parsePickledStrList, readHdfProject, hdfStoreKeys, readPandasGroup,
+    makeLinear, makeCubic, npInterp, linspace,
+    symmetrize, antisymmetrize, splitSweeps,
+    mergeAll, mergeSequential, mergeSmart, mergeBase,
+    toCsv, xyColumns, xyTsv,
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+</script>
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const TAB10 = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd', '#8c564b', '#e377c2', '#7f7f7f', '#bcbd22', '#17becf'];
+
+const fm = new DP.FileManager();
+const state = {
+  selected: [],            // selected tree items, in tree order
+  open: new Set(),         // expanded folders
+  x: '', y: '',
+  mode: 'gesture',
+  zoomed: false,           // view differs from the full-data view
+  points: new Map(),       // file -> Set(row index)
+  traceFiles: [],
+  plotKey: '',
+};
+
+// ------------------------------------------------------------------ status
+const logLines = [];
+function log(msg, err = false) {
+  logLines.push(`${new Date().toLocaleTimeString()}  ${msg}`);
+  if (logLines.length > 300) logLines.shift();
+  $('#statusText').textContent = msg;
+  $('#status').classList.toggle('err', err);
+  if (!$('#log').hidden) renderLog();
+}
+function renderLog() { $('#log').textContent = logLines.slice().reverse().join('\n'); }
+$('#btnLog').onclick = () => { const l = $('#log'); l.hidden = !l.hidden; $('#btnLog').textContent = l.hidden ? '记录' : '收起'; if (!l.hidden) renderLog(); };
+
+let toastTimer;
+function toast(msg) {
+  let t = $('.toast');
+  if (!t) { t = document.createElement('div'); t.className = 'toast'; t.setAttribute('role', 'status'); document.body.append(t); }
+  t.textContent = msg;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.remove(), 2600);
+}
+async function withBusy(msg, fn) {
+  const b = document.createElement('div');
+  b.className = 'busy'; b.innerHTML = `<div>${esc(msg)}</div>`;
+  document.body.append(b);
+  await new Promise(r => setTimeout(r, 30));
+  try { return await fn(); } finally { b.remove(); }
+}
+
+// ------------------------------------------------------------------ sheets
+function sheet(title, sub, bodyHtml, actions, onMount) {
+  return new Promise(resolve => {
+    const scrim = document.createElement('div');
+    scrim.className = 'scrim';
+    scrim.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+      <h3>${esc(title)}</h3>${sub ? `<p class="sub">${sub}</p>` : ''}<form>${bodyHtml}
+      <div class="actions"></div></form></div>`;
+    const form = scrim.querySelector('form');
+    const bar = scrim.querySelector('.actions');
+    const close = v => { scrim.remove(); resolve(v); };
+    (actions || [{ label: '取消', value: null }, { label: '确定', value: 'ok', primary: true }]).forEach(a => {
+      const b = document.createElement('button');
+      b.type = a.primary ? 'submit' : 'button';
+      b.className = 'btn' + (a.primary ? ' primary' : '') + (a.danger ? ' danger' : '');
+      b.textContent = a.label;
+      if (!a.primary) b.onclick = () => close(a.value === null ? null : { action: a.value, form });
+      bar.append(b);
+    });
+    const primary = (actions || []).find(a => a.primary) || { value: 'ok' };
+    form.onsubmit = e => { e.preventDefault(); close({ action: primary.value, form }); };
+    scrim.addEventListener('click', e => { if (e.target === scrim) close(null); });
+    scrim.addEventListener('keydown', e => { if (e.key === 'Escape') close(null); });
+    document.body.append(scrim);
+    const first = scrim.querySelector('input:not([type=radio]), select, .actions .btn.primary');
+    if (first) first.focus({ preventScroll: true });
+    if (onMount) onMount(scrim, close);
+  });
+}
+const confirmSheet = (title, sub, label = '确定', danger = false) =>
+  sheet(title, sub, '', [{ label: '取消', value: null }, { label, value: 'ok', primary: true, danger }]).then(r => !!r);
+function radios(name, opts, checked) {
+  return opts.map(([v, l]) => `<label class="opt"><input type="radio" name="${name}" value="${esc(v)}"${v === checked ? ' checked' : ''}>${esc(l)}</label>`).join('');
+}
+const formVal = (form, name) => { const el = form.elements[name]; return el ? el.value : undefined; };
+
+// ------------------------------------------------------------------ helpers
+function selectedFiles() {
+  const out = [];
+  for (const n of state.selected) for (const f of fm.filesRecursive(n)) if (!out.includes(f)) out.push(f);
+  return out;
+}
+function selectedDirectFiles() { return state.selected.filter(n => fm.nodes.has(n) && !fm.nodes.get(n).isFolder); }
+const EXAMPLE = '示例数据（可删除）';
+function targetFolder() {
+  const first = state.selected[0];
+  return first && first !== EXAMPLE && fm.nodes.get(first)?.isFolder ? first : null;
+}
+function orderSelection() {
+  const order = fm.walk().map(w => w.name);
+  state.selected = state.selected.filter(n => fm.nodes.has(n)).sort((a, b) => order.indexOf(a) - order.indexOf(b));
+}
+function columnsOf(files) {
+  for (const f of files) { const t = fm.current(f); if (t) return t.columns; }
+  return [];
+}
+
+// ------------------------------------------------------------------ tree
+const CARET = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 3 5 5-5 5"/></svg>';
+function renderTree() {
+  orderSelection();
+  const el = $('#tree');
+  const rows = [];
+  const rec = (names, depth) => {
+    for (const name of names) {
+      const n = fm.nodes.get(name);
+      const sel = state.selected.includes(name);
+      const pad = 6 + depth * 18;
+      if (n.isFolder) {
+        const open = state.open.has(name);
+        rows.push(`<div class="item folder${sel ? ' sel' : ''}" role="treeitem" aria-expanded="${open}" aria-selected="${sel}" tabindex="0" data-name="${esc(name)}" style="padding-left:${pad}px">
+          <button class="caret${open ? ' open' : ''}" type="button" data-caret aria-label="${open ? '收起' : '展开'}">${CARET}</button>
+          <span class="tick"></span><span class="name">${esc(name)}</span><span class="meta">${fm.filesRecursive(name).length}</span></div>`);
+        if (open) rec(n.children, depth + 1);
+      } else {
+        const t = fm.current(name);
+        rows.push(`<div class="item${sel ? ' sel' : ''}" role="treeitem" aria-selected="${sel}" tabindex="0" data-name="${esc(name)}" style="padding-left:${pad}px">
+          <span class="spacer"></span><span class="tick"></span><span class="name">${esc(name)}</span>
+          ${n.modified ? '<span class="badge">已改</span>' : ''}<span class="meta">${DP.nrows(t).toLocaleString()}</span></div>`);
+      }
+    }
+  };
+  rec(fm.rootItems, 0);
+  const files = [...fm.nodes.values()].filter(n => !n.isFolder).length;
+  $('#treeCount').textContent = files ? `${files} 个文件` + (state.selected.length ? ` · 已选 ${state.selected.length}` : '') : '';
+  el.innerHTML = rows.join('') || '<div class="empty">还没有数据。点上方“导入”，从“文件”App 里选 Dropbox 中的 txt、csv、hk 或 h5 文件。</div>';
+}
+$('#tree').addEventListener('click', e => {
+  const item = e.target.closest('.item');
+  if (!item) return;
+  const name = item.dataset.name;
+  if (e.target.closest('[data-caret]')) {
+    state.open.has(name) ? state.open.delete(name) : state.open.add(name);
+    renderTree();
+    return;
+  }
+  const i = state.selected.indexOf(name);
+  if (i >= 0) state.selected.splice(i, 1); else state.selected.push(name);
+  onSelectionChange();
+});
+$('#tree').addEventListener('keydown', e => {
+  if ((e.key === 'Enter' || e.key === ' ') && e.target.classList.contains('item')) { e.preventDefault(); e.target.click(); }
+});
+$('#btnSelAll').onclick = () => { state.selected = fm.rootItems.slice(); onSelectionChange(); };
+$('#btnSelNone').onclick = () => { state.selected = []; onSelectionChange(); };
+
+function onSelectionChange() {
+  renderTree();
+  updateColumns();
+  plot();
+}
+
+// ------------------------------------------------------------------ columns
+function fillSelect(sel, cols, value) {
+  sel.innerHTML = cols.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+  if (cols.includes(value)) sel.value = value;
+}
+function updateColumns() {
+  const cols = columnsOf(selectedFiles());
+  if (!cols.length) { fillSelect($('#selX'), [], ''); fillSelect($('#selY'), [], ''); return; }
+  if (!cols.includes(state.x)) state.x = cols[0];
+  if (!cols.includes(state.y)) state.y = cols[1] || cols[0];
+  fillSelect($('#selX'), cols, state.x);
+  fillSelect($('#selY'), cols, state.y);
+}
+$('#selX').onchange = e => { state.x = e.target.value; clearPoints(false); plot(); save(); };
+$('#selY').onchange = e => { state.y = e.target.value; clearPoints(false); plot(); save(); };
+['scaleX', 'scaleY', 'optMarkers', 'optGrid', 'optLegend'].forEach(id => { $('#' + id).onchange = () => { plot(); save(); }; });
+
+// ------------------------------------------------------------------ plot
+function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
+function axisTitle(t) { return { text: t, font: { size: 13 } }; }
+
+function plot() {
+  const el = $('#plot');
+  const files = selectedFiles();
+  const x = state.x, y = state.y;
+  if (!files.length || !x || !y) {
+    Plotly.purge(el);
+    el.innerHTML = `<div class="plotempty">${fm.nodes.size ? '在左侧点选文件或文件夹，就会画出 X–Y 曲线。' : '导入数据后在这里画图。'}</div>`;
+    state.traceFiles = [];
+    updatePointUi();
+    return;
+  }
+  if (el.querySelector('.plotempty')) el.innerHTML = '';
+  const markers = $('#optMarkers').checked;
+  const traces = [];
+  state.traceFiles = [];
+  files.forEach((f, i) => {
+    const t = fm.current(f);
+    if (!t || !t.columns.includes(x) || !t.columns.includes(y)) return;
+    const n = DP.nrows(t);
+    traces.push({
+      type: n > 4000 ? 'scattergl' : 'scatter', mode: markers ? 'lines+markers' : 'lines', name: f,
+      x: t.data[x], y: t.data[y], line: { width: 1.5, color: TAB10[i % 10] },
+      marker: { size: 5, color: TAB10[i % 10] }, opacity: 0.85,
+      hovertemplate: `${esc(f)}<br>${esc(x)}=%{x}<br>${esc(y)}=%{y}<extra></extra>`,
+    });
+    state.traceFiles.push(f);
+  });
+  // highlighted points
+  const px = [], py = [];
+  for (const [f, set] of state.points) {
+    const t = fm.current(f);
+    if (!t || !t.columns.includes(x) || !t.columns.includes(y)) continue;
+    for (const i of set) { px.push(t.data[x][i]); py.push(t.data[y][i]); }
+  }
+  if (px.length) traces.push({ type: 'scatter', mode: 'markers', x: px, y: py, name: '选中点', showlegend: false, hoverinfo: 'skip',
+    marker: { size: 11, color: 'rgba(0,0,0,0)', line: { width: 2, color: cssVar('--mark') } } });
+
+  const ink = cssVar('--ink'), line = cssVar('--line'), muted = cssVar('--muted');
+  const grid = $('#optGrid').checked;
+  const ax = (title, type) => ({ title: axisTitle(title), type, showgrid: grid, gridcolor: line, griddash: 'dash', zeroline: false,
+    linecolor: muted, mirror: true, ticks: 'outside', tickcolor: muted, color: ink, exponentformat: 'e', automargin: true });
+  const key = `${files.join('|')}::${x}::${y}::${$('#scaleX').value}${$('#scaleY').value}`;
+  const narrow = el.clientWidth < 600;
+  const layout = {
+    paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { family: cssVar('--font'), color: ink, size: 12 },
+    margin: { l: 56, r: 14, t: 10, b: 46 }, xaxis: ax(x, $('#scaleX').value), yaxis: ax(y, $('#scaleY').value),
+    showlegend: $('#optLegend').checked && state.traceFiles.length <= 10,
+    legend: narrow ? { orientation: 'h', x: 0, y: -0.22, yanchor: 'top', font: { size: 11 } } : { x: 1, xanchor: 'right', y: 1, bgcolor: cssVar('--panel'), bordercolor: line, borderwidth: 1, font: { size: 11 } },
+    dragmode: dragModeOf(state.mode), hovermode: 'closest', uirevision: key, selections: [],
+    hoverlabel: { font: { family: cssVar('--mono') } },
+  };
+  if (key !== state.plotKey) { state.plotKey = key; state.zoomed = false; }
+  Plotly.react(el, traces, layout, { responsive: true, displayModeBar: false, scrollZoom: true, doubleClick: 'reset' });
+  el.classList.toggle('gesture', state.mode === 'gesture');
+  if (!el._bound) { bindPlotEvents(el); bindTouchGestures(el); }
+  updatePointUi();
+}
+
+function bindPlotEvents(el) {
+  el._bound = true;
+  el.on('plotly_selected', ev => {
+    if (!ev || !ev.points || !ev.points.length) return;
+    let added = 0;
+    for (const p of ev.points) {
+      const f = state.traceFiles[p.curveNumber];
+      if (!f) continue;
+      const idx = p.pointIndex ?? p.pointNumber;
+      if (!state.points.has(f)) state.points.set(f, new Set());
+      const s = state.points.get(f);
+      if (!s.has(idx)) { s.add(idx); added++; }
+    }
+    log(`选中 ${added} 个点`);
+    plot();
+  });
+  el.on('plotly_click', ev => {
+    if (state.mode !== 'tap' || !ev || !ev.points || !ev.points.length) return;
+    const p = ev.points[0];
+    const f = state.traceFiles[p.curveNumber];
+    if (!f) return;
+    const idx = p.pointIndex ?? p.pointNumber;
+    if (!state.points.has(f)) state.points.set(f, new Set());
+    const s = state.points.get(f);
+    s.has(idx) ? s.delete(idx) : s.add(idx);
+    plot();
+  });
+}
+
+function dragModeOf(mode) {
+  // in gesture mode touches are handled below; a mouse still pans through Plotly
+  return mode === 'gesture' ? 'pan' : mode === 'tap' ? false : mode;
+}
+
+// ------------------------------------------------------------------ touch gestures (photo-style)
+// one finger pans (with inertia), two fingers pinch around their midpoint, double tap zooms in / back out,
+// single tap shows the nearest value. Ranges are worked in axis coordinates, so log axes behave too.
+function bindTouchGestures(el) {
+  const axes = () => { const L = el._fullLayout; return L && L.xaxis && L.yaxis ? [L.xaxis, L.yaxis] : null; };
+  // pixel (relative to el) -> axis coordinate, from a snapshot of the axis
+  const snap = ax => ({ r0: ax.range[0], r1: ax.range[1], off: ax._offset, len: ax._length });
+  const fracX = (s, px) => (px - s.off) / s.len;
+  const fracY = (s, py) => (s.off + s.len - py) / s.len;
+  const coord = (s, f) => s.r0 + f * (s.r1 - s.r0);
+
+  let pending = null, frame = 0, timer = 0;
+  function flush() {
+    cancelAnimationFrame(frame); clearTimeout(timer); frame = timer = 0;
+    const p = pending; pending = null;
+    if (p) Plotly.relayout(el, p);
+  }
+  function apply(xr, yr) {
+    pending = { 'xaxis.range': xr, 'yaxis.range': yr };
+    state.zoomed = true;
+    // one redraw per frame; the timer covers views where animation frames are paused
+    if (!frame) { frame = requestAnimationFrame(flush); timer = setTimeout(flush, 40); }
+  }
+  const local = t => { const r = el.getBoundingClientRect(); return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+  const inPlot = p => { const a = axes(); return a && p.x >= a[0]._offset && p.x <= a[0]._offset + a[0]._length && p.y >= a[1]._offset && p.y <= a[1]._offset + a[1]._length; };
+
+  let g = null;            // active gesture
+  let inertia = 0;
+  let lastTap = null, tapTimer = 0;
+
+  function startPan(p) {
+    const [xa, ya] = axes();
+    g = { kind: 'pan', p0: p, sx: snap(xa), sy: snap(ya), moved: false, t0: performance.now(), hist: [{ p, t: performance.now() }] };
+  }
+  function startPinch(a, b) {
+    const [xa, ya] = axes();
+    const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
+    const angle = Math.atan2(dy, dx) * 180 / Math.PI;
+    // fingers side by side stretch X only, one above the other stretch Y only, diagonal scales both
+    const lock = angle < 25 ? 'x' : angle > 65 ? 'y' : 'xy';
+    g = { kind: 'pinch', lock, sx: snap(xa), sy: snap(ya), m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, d0: { x: Math.max(dx, 1), y: Math.max(dy, 1), r: Math.max(Math.hypot(dx, dy), 1) }, moved: true };
+  }
+
+  el.addEventListener('touchstart', e => {
+    if (state.mode !== 'gesture' || !axes()) return;
+    cancelAnimationFrame(inertia); inertia = 0;
+    e.preventDefault(); e.stopPropagation();
+    const ts = [...e.touches].map(local);
+    if (ts.length >= 2) startPinch(ts[0], ts[1]);
+    else if (inPlot(ts[0])) startPan(ts[0]);
+    else g = null;
+  }, { capture: true, passive: false });
+
+  el.addEventListener('touchmove', e => {
+    if (state.mode !== 'gesture' || !g) return;
+    e.preventDefault(); e.stopPropagation();
+    const ts = [...e.touches].map(local);
+    if (g.kind === 'pan' && ts.length === 1) {
+      const p = ts[0], { sx, sy } = g;
+      if (Math.hypot(p.x - g.p0.x, p.y - g.p0.y) > 6) g.moved = true;
+      if (!g.moved) return;
+      const ddx = (p.x - g.p0.x) / sx.len * (sx.r1 - sx.r0), ddy = (p.y - g.p0.y) / sy.len * (sy.r1 - sy.r0);
+      apply([sx.r0 - ddx, sx.r1 - ddx], [sy.r0 + ddy, sy.r1 + ddy]);
+      g.hist.push({ p, t: performance.now() });
+      if (g.hist.length > 6) g.hist.shift();
+    } else if (g.kind === 'pinch' && ts.length >= 2) {
+      const [a, b] = ts, { sx, sy, m0, d0, lock } = g;
+      const m = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const r = Math.max(Math.hypot(b.x - a.x, b.y - a.y), 1);
+      const kx = lock === 'y' ? 1 : d0.r / r, ky = lock === 'x' ? 1 : d0.r / r;
+      // the data point under the starting midpoint stays under the fingers
+      const cx = coord(sx, fracX(sx, m0.x)), cy = coord(sy, fracY(sy, m0.y));
+      const wx = (sx.r1 - sx.r0) * kx, wy = (sy.r1 - sy.r0) * ky;
+      const x0 = cx - fracX(sx, m.x) * wx, y0 = cy - fracY(sy, m.y) * wy;
+      apply([x0, x0 + wx], [y0, y0 + wy]);
+    } else if (ts.length >= 2) startPinch(ts[0], ts[1]);
+  }, { capture: true, passive: false });
+
+  el.addEventListener('touchend', e => {
+    if (state.mode !== 'gesture' || !g) return;
+    e.preventDefault(); e.stopPropagation();
+    if (e.touches.length === 1) { startPan(local(e.touches[0])); g.moved = true; return; }  // pinch -> pan
+    if (e.touches.length) return;
+    const done = g; g = null;
+    if (done.kind !== 'pan') return;
+    if (!done.moved) { onTap(done.p0); return; }
+    // release velocity from the last ~80 ms, then glide
+    const now = performance.now(), recent = done.hist.filter(h => now - h.t < 80);
+    if (recent.length < 2) return;
+    const a = recent[0], b = recent[recent.length - 1], dt = Math.max(b.t - a.t, 1);
+    let vx = (b.p.x - a.p.x) / dt, vy = (b.p.y - a.p.y) / dt;   // px per ms
+    if (Math.hypot(vx, vy) < 0.25) return;
+    const [xa, ya] = axes();
+    let sx = snap(xa), sy = snap(ya), last = now;
+    const step = t => {
+      const dtt = t - last; last = t;
+      const decay = Math.pow(0.94, dtt / 16);
+      vx *= decay; vy *= decay;
+      const ddx = vx * dtt / sx.len * (sx.r1 - sx.r0), ddy = vy * dtt / sy.len * (sy.r1 - sy.r0);
+      sx = { ...sx, r0: sx.r0 - ddx, r1: sx.r1 - ddx }; sy = { ...sy, r0: sy.r0 + ddy, r1: sy.r1 + ddy };
+      apply([sx.r0, sx.r1], [sy.r0, sy.r1]);
+      inertia = Math.hypot(vx, vy) > 0.02 ? requestAnimationFrame(step) : 0;
+    };
+    inertia = requestAnimationFrame(step);
+  }, { capture: true, passive: false });
+
+  el.addEventListener('touchcancel', () => { g = null; }, { capture: true });
+
+  function onTap(p) {
+    const now = performance.now();
+    if (lastTap && now - lastTap.t < 320 && Math.hypot(p.x - lastTap.p.x, p.y - lastTap.p.y) < 30) {
+      clearTimeout(tapTimer); lastTap = null;
+      if (state.zoomed) { resetView(); return; }
+      const [xa, ya] = axes(), sx = snap(xa), sy = snap(ya), k = 1 / 2.5;
+      const cx = coord(sx, fracX(sx, p.x)), cy = coord(sy, fracY(sy, p.y));
+      const wx = (sx.r1 - sx.r0) * k, wy = (sy.r1 - sy.r0) * k;
+      // zoom into the tapped point, keeping it where the finger is
+      const x0 = cx - fracX(sx, p.x) * wx, y0 = cy - fracY(sy, p.y) * wy;
+      Plotly.relayout(el, { 'xaxis.range': [x0, x0 + wx], 'yaxis.range': [y0, y0 + wy] });
+      state.zoomed = true;
+      return;
+    }
+    lastTap = { p, t: now };
+    clearTimeout(tapTimer);
+    tapTimer = setTimeout(() => {
+      // single tap: read out the nearest point
+      const [xa, ya] = axes();
+      Plotly.Fx.hover(el, { xpx: p.x - xa._offset, ypx: p.y - ya._offset });
+    }, 330);
+  }
+
+  el.on('plotly_relayout', ev => {
+    if (ev && (ev['xaxis.autorange'] || ev['yaxis.autorange'])) state.zoomed = false;
+    else if (ev && (ev['xaxis.range[0]'] !== undefined || ev['xaxis.range'])) state.zoomed = true;
+  });
+}
+
+function countPoints() { let n = 0; for (const s of state.points.values()) n += s.size; return n; }
+function updatePointUi() {
+  const n = countPoints();
+  $('#selInfo').textContent = n ? `已选 ${n} 个点` : '';
+  $('#btnDelPts').hidden = !n;
+  $('#btnClearPts').hidden = !n;
+}
+function clearPoints(redraw = true) { state.points.clear(); if (redraw) plot(); else updatePointUi(); }
+
+$('#modeSeg').addEventListener('click', e => {
+  const b = e.target.closest('button[data-mode]');
+  if (!b) return;
+  state.mode = b.dataset.mode;
+  $('#modeSeg').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false'));
+  $('#plot').classList.toggle('gesture', state.mode === 'gesture');
+  if (state.traceFiles.length) Plotly.relayout('plot', { dragmode: dragModeOf(state.mode) });
+});
+function resetView() {
+  state.zoomed = false;
+  if (state.traceFiles.length) Plotly.relayout('plot', { 'xaxis.autorange': true, 'yaxis.autorange': true });
+}
+$('#btnAuto').onclick = resetView;
+$('#btnClearPts').onclick = () => { clearPoints(); log('已清除选中的点'); };
+$('#btnDelPts').onclick = async () => {
+  const n = countPoints();
+  if (!await confirmSheet(`删除 ${n} 个点？`, '从文件里删掉这些数据点。删除后可以用“还原数据”恢复原始文件。', '删除', true)) return;
+  let files = 0;
+  for (const [f, set] of state.points) {
+    const t = fm.current(f);
+    if (!t || !set.size) continue;
+    const keep = [];
+    for (let i = 0; i < DP.nrows(t); i++) if (!set.has(i)) keep.push(i);
+    fm.update(f, DP.takeRows(t, keep));
+    files++;
+  }
+  state.points.clear();
+  log(`从 ${files} 个文件中删除了 ${n} 个点`);
+  renderTree(); plot(); save();
+};
+
+// ------------------------------------------------------------------ import
+$('#btnImport').onclick = () => $('#fileInput').click();
+$('#fileInput').onchange = async e => {
+  const files = [...e.target.files];
+  e.target.value = '';
+  if (!files.length) return;
+  const target = targetFolder();
+  const before = new Set(fm.nodes.keys());
+  await withBusy(`正在读取 ${files.length} 个文件…`, async () => {
+    for (const file of files) {
+      try { await importFile(file, target); }
+      catch (err) { log(`${file.name}：${err.message || err}`, true); toast(`${file.name} 读取失败`); }
+    }
+  });
+  if (target) state.open.add(target);
+  // select what was just imported so it plots right away
+  const added = [...fm.nodes.keys()].filter(n => !before.has(n));
+  const top = added.filter(n => !added.includes(fm.nodes.get(n).parent));
+  if (top.length) state.selected = top;
+  onSelectionChange(); save();
+};
+
+async function importFile(file, target) {
+  const lower = file.name.toLowerCase();
+  const base = file.name.replace(/\.[^.]+$/, '');
+  if (lower.endsWith('.h5') || lower.endsWith('.hdf5')) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const r = await readH5(buf, base);
+    addItems(r.items, target, r.structured);
+    log(`已读取 HDF5：${file.name}（${r.items.filter(i => !i.isFolder).length} 个数据）`);
+  } else if (lower.endsWith('.hk')) {
+    const r = DP.parseHkFile(await file.text());
+    const folder = fm.addFolder(base, target).name;
+    r.runs.forEach(run => fm.addFile(run.name, run.table, folder));
+    state.open.add(folder);
+    log(`已读取 HK：${base}（${r.runs.length} 个 run，${r.blocks} 个数据块${r.skipped ? `，跳过 ${r.skipped} 个` : ''}）`);
+  } else if (lower.endsWith('.json')) {
+    const items = DP.projectFromJson(await file.text());
+    addItems(items, target, true);
+    log(`已打开工程：${file.name}`);
+  } else {
+    const t = DP.parseTextFile(await file.text());
+    fm.addFile(file.name, t, target);
+    log(`已读取：${file.name}（${DP.nrows(t)} 行，${t.columns.length} 列）`);
+  }
+}
+
+// mirrors load_hdf5_file: folders keep their parents, top level goes into the target folder
+function addItems(items, target, structured) {
+  const rename = new Map();
+  for (const it of items) {
+    const parent = it.parent ? (rename.get(it.parent) || it.parent) : target;
+    const node = it.isFolder ? fm.addFolder(it.name, parent) : fm.addFile(it.name, it.table, parent);
+    if (node.name !== it.name) rename.set(it.name, node.name);
+    if (it.isFolder && (!it.parent || !structured)) state.open.add(node.name);
+  }
+}
+
+// ------------------------------------------------------------------ HDF5 via h5wasm
+let h5Ready = null;
+function loadScript(src) {
+  return new Promise((res, rej) => {
+    const s = document.createElement('script');
+    s.src = src; s.onload = res; s.onerror = () => rej(new Error('无法加载 ' + src.split('/').pop()));
+    document.head.append(s);
+  });
+}
+function h5lib() {
+  if (!h5Ready) h5Ready = (async () => {
+    await loadScript('https://cdn.jsdelivr.net/npm/h5wasm@0.10.3/dist/iife/h5wasm.js');
+    const lib = window.h5wasm.default || window.h5wasm;
+    const Module = await lib.ready;
+    const dir = Module.get_plugin_search_paths()[0];
+    Module.FS.mkdirTree(dir);
+    const resp = await fetch('h5plugins/libH5Zblosc.wasm');
+    if (!resp.ok) throw new Error('blosc 解压插件没有加载成功');
+    Module.FS.writeFile(`${dir}/libH5Zblosc.so`, new Uint8Array(await resp.arrayBuffer()));
+    return { lib, Module };
+  })().catch(e => { h5Ready = null; throw e; });
+  return h5Ready;
+}
+async function readH5(buf, base) {
+  const { lib, Module } = await h5lib();
+  const path = `/in_${Date.now()}.h5`;
+  Module.FS.writeFile(path, buf);
+  const f = new lib.File(path, 'r');
+  try { return DP.readHdfProject(f, base); }
+  finally { f.close(); Module.FS.unlink(path); }
+}
+
+// ------------------------------------------------------------------ file ops
+$('#btnFolder').onclick = async () => {
+  const parent = targetFolder();
+  const r = await sheet('新建文件夹', parent ? `建在“${esc(parent)}”里面` : '建在最外层',
+    '<fieldset><input type="text" name="name" id="newFolderName" value="新文件夹" autocomplete="off"></fieldset>');
+  if (!r) return;
+  const name = formVal(r.form, 'name').trim();
+  if (!name) return;
+  const node = fm.addFolder(name, parent);
+  if (parent) state.open.add(parent);
+  state.open.add(node.name);
+  log(`已建文件夹：${node.name}`);
+  renderTree(); save();
+};
+$('#btnRename').onclick = async () => {
+  if (state.selected.length !== 1) { toast('请只选一个文件或文件夹'); return; }
+  const old = state.selected[0];
+  const r = await sheet('重命名', null, `<fieldset><input type="text" name="name" id="renameInput" value="${esc(old)}" autocomplete="off"></fieldset>`);
+  if (!r) return;
+  const name = formVal(r.form, 'name').trim();
+  if (!name || name === old) return;
+  if (!fm.rename(old, name)) { toast('这个名字已经被占用'); return; }
+  if (state.open.delete(old)) state.open.add(name);
+  if (state.points.has(old)) { state.points.set(name, state.points.get(old)); state.points.delete(old); }
+  state.selected = [name];
+  log(`已重命名：${old} → ${name}`);
+  renderTree(); plot(); save();
+};
+$('#btnMove').onclick = async () => {
+  if (!state.selected.length) { toast('先选要移动的文件或文件夹'); return; }
+  const folders = fm.walk().filter(w => fm.nodes.get(w.name).isFolder && !state.selected.includes(w.name)
+    && !state.selected.some(s => fm.isInside(w.name, s)));
+  const opts = [['', '最外层'], ...folders.map(w => [w.name, ' '.repeat(w.depth * 2) + w.name])];
+  const r = await sheet(`移动 ${state.selected.length} 项`, '选目标文件夹', `<fieldset>${radios('to', opts, '')}</fieldset>`);
+  if (!r) return;
+  const to = formVal(r.form, 'to') || null;
+  let n = 0;
+  for (const s of state.selected.slice()) if (fm.moveItem(s, to)) n++;
+  if (to) state.open.add(to);
+  log(`已移动 ${n} 项到 ${to || '最外层'}`);
+  renderTree(); save();
+};
+$('#btnDelete').onclick = async () => {
+  if (!state.selected.length) { toast('先选要删除的文件或文件夹'); return; }
+  const files = selectedFiles().length;
+  if (!await confirmSheet(`删除 ${state.selected.length} 项？`, `其中共有 ${files} 个数据文件。只从这里移除，不会动 Dropbox 里的原文件。`, '删除', true)) return;
+  for (const s of state.selected) { for (const f of fm.filesRecursive(s)) state.points.delete(f); fm.deleteItem(s); }
+  log(`已删除 ${state.selected.length} 项`);
+  state.selected = [];
+  onSelectionChange(); save();
+};
+$('#btnReset').onclick = async () => {
+  const files = selectedFiles().filter(f => fm.nodes.get(f).modified);
+  if (!files.length) { toast('选中的文件都没有修改过'); return; }
+  if (!await confirmSheet(`还原 ${files.length} 个文件？`, '撤销删点、对称化等所有修改，回到导入时的数据。', '还原')) return;
+  files.forEach(f => { fm.reset(f); state.points.delete(f); });
+  log(`已还原 ${files.length} 个文件`);
+  renderTree(); updateColumns(); plot(); save();
+};
+
+// ------------------------------------------------------------------ processing
+function needXY() {
+  if (!selectedFiles().length) { toast('先选文件'); return false; }
+  if (!state.x || !state.y) { toast('先选 X 和 Y 列'); return false; }
+  return true;
+}
+async function symDialog(kind) {
+  if (!needXY()) return;
+  const anti = kind === 'anti';
+  const files = selectedFiles();
+  const r = await sheet(anti ? '反对称化' : '对称化',
+    `${anti ? '(f(x) − f(−x))/2' : '(f(x) + f(−x))/2'}，X = <b>${esc(state.x)}</b>，Y = <b>${esc(state.y)}</b>，共 ${files.length} 个文件。结果作为新列 <b>${anti ? 'antisymmetrized_' : 'symmetrized_'}${esc(state.y)}</b> 加到文件里。`,
+    `<fieldset><legend>数据类型</legend>${radios('sweep', [['hysteretic', '滞回（来回扫，先平均上扫和下扫）'], ['non_hysteretic', '单向扫描']], 'hysteretic')}</fieldset>
+     <fieldset><legend>插值方法</legend>${radios('method', [['linear', '线性插值'], ['cubic', '三次样条']], 'linear')}</fieldset>
+     <fieldset><legend>范围（留空 = 自动）</legend><div class="grid2">
+       <label>X 最小值<input type="text" inputmode="decimal" name="xmin" id="symXmin" placeholder="auto"></label>
+       <label>X 最大值<input type="text" inputmode="decimal" name="xmax" id="symXmax" placeholder="auto"></label></div></fieldset>`,
+    [{ label: '取消', value: null }, { label: '应用', value: 'ok', primary: true }]);
+  if (!r) return;
+  const rng = v => { v = (v || '').trim(); if (!v || v.toLowerCase() === 'auto') return 'auto'; const n = Number(v); if (!Number.isFinite(n)) throw new Error('范围要填数字或留空'); return n; };
+  let xmin, xmax;
+  try { xmin = rng(formVal(r.form, 'xmin')); xmax = rng(formVal(r.form, 'xmax')); } catch (e) { toast(e.message); return; }
+  const sweep = formVal(r.form, 'sweep'), method = formVal(r.form, 'method');
+  let ok = 0, col = '';
+  for (const f of files) {
+    const t = fm.current(f);
+    if (!t.columns.includes(state.x) || !t.columns.includes(state.y)) { log(`${f}：没有 ${state.x} 或 ${state.y} 列，已跳过`); continue; }
+    try {
+      const res = (anti ? DP.antisymmetrize : DP.symmetrize)(t, state.x, state.y, sweep, method, xmin, xmax);
+      fm.update(f, res.table); col = res.column; ok++;
+      log(`${f}：|${state.x}| ≤ ${+res.range.toPrecision(6)} 范围内有结果，范围外为空`);
+      if (res.single) log(`${f}：没分出上扫和下扫两段，已按单向扫描处理`);
+    } catch (e) { log(`${f}：${e.message}`, true); }
+  }
+  if (ok) {
+    state.y = col;
+    log(`${anti ? '反对称化' : '对称化'}完成：${ok} 个文件，新列 ${col}`);
+    toast(`已添加列 ${col}`);
+  }
+  renderTree(); updateColumns(); plot(); save();
+}
+$('#btnSym').onclick = () => symDialog('sym');
+$('#btnAnti').onclick = () => symDialog('anti');
+
+$('#btnSplit').onclick = async () => {
+  const files = selectedFiles();
+  if (!files.length) { toast('先选要拆分的文件'); return; }
+  const cols = columnsOf(files);
+  const guess = cols.find(c => ['field', 'b', 'magnetic', 'h', 'hall'].some(k => c.toLowerCase().includes(k))) || state.x || cols[0];
+  const opt = (c, v) => `<option value="${esc(c)}"${c === v ? ' selected' : ''}>${esc(c)}</option>`;
+  const r = await sheet('拆分 sweep', `按扫描方向的变化，把每个文件拆成多段。共 ${files.length} 个文件，原文件会被拆出来的各段替换。`,
+    `<fieldset><legend>扫描量所在的列</legend><select name="field" id="splitField">${cols.map(c => opt(c, guess)).join('')}</select></fieldset>
+     <fieldset><legend>参数列（可选，写进文件名）</legend><select name="param" id="splitParam"><option value="">无</option>${cols.map(c => opt(c, '')).join('')}</select></fieldset>
+     <div class="grid2" style="margin-bottom:14px">
+       <label>参数缩写（如 T、G）<input type="text" name="abbrev" id="splitAbbrev" autocomplete="off"></label>
+       <label>每段最少点数<input type="number" name="min" id="splitMin" value="10" min="1" inputmode="numeric"></label></div>`,
+    [{ label: '取消', value: null }, { label: '拆分', value: 'ok', primary: true }]);
+  if (!r) return;
+  const field = formVal(r.form, 'field'), param = formVal(r.form, 'param'), abbrev = formVal(r.form, 'abbrev').trim();
+  const minPoints = Math.max(1, parseInt(formVal(r.form, 'min'), 10) || 10);
+  let split = 0;
+  const created = [];
+  for (const f of files) {
+    const t = fm.current(f);
+    if (!t || !t.columns.includes(field)) continue;
+    const res = DP.splitSweeps(t, f, field, { minPoints, paramCol: param, paramAbbrev: abbrev });
+    if (!res.segments.length) { log(`${f}：${res.reason}`); continue; }
+    const parent = fm.nodes.get(f).parent;
+    const sib = fm.siblings(f);
+    let pos = sib.indexOf(f);
+    for (const s of res.segments) {
+      const node = fm.addFile(s.name, s.table, parent);
+      fm.moveItem(node.name, parent, ++pos);
+      created.push(node.name);
+    }
+    state.points.delete(f);
+    fm.deleteItem(f);
+    log(`${f} 拆成 ${res.segments.length} 段`);
+    split++;
+  }
+  if (split) { state.selected = created; toast(`拆分了 ${split} 个文件，共 ${created.length} 段`); }
+  else toast('没有检测到多段 sweep');
+  onSelectionChange(); save();
+};
+
+$('#btnMerge').onclick = async () => {
+  const files = selectedFiles();
+  if (files.length < 2) { toast('至少选 2 个文件才能合并'); return; }
+  const r = await sheet('合并 sweep', '把选中的文件合成滞回回线。新文件加在第一个文件旁边，原文件保留。',
+    `<fieldset><legend>合并方式</legend>${radios('strategy', [['concatenate', '首尾拼接'], ['interleave', '逐点交替']], 'concatenate')}</fieldset>
+     <fieldset><legend>配对方式</legend>${radios('pair', [['sequential', '按顺序两两配对（1+2，3+4…）'], ['smart', '按文件名里的参数配对 up/down'], ['all_in_one', '全部合成一个文件']], 'sequential')}</fieldset>
+     <fieldset><legend>选中的文件（按列表顺序）</legend><div class="list">${files.map(f => `<div>${esc(f)}</div>`).join('')}</div></fieldset>`,
+    [{ label: '取消', value: null }, { label: '合并', value: 'ok', primary: true }]);
+  if (!r) return;
+  const strategy = formVal(r.form, 'strategy'), pair = formVal(r.form, 'pair');
+  const fn = { all_in_one: DP.mergeAll, sequential: DP.mergeSequential, smart: DP.mergeSmart }[pair];
+  const out = fn(files, strategy, n => fm.current(n));
+  if (!out.length) { toast('没有可以配对的文件'); return; }
+  const created = out.map(m => fm.addFile(m.name, m.table, fm.nodes.get(m.anchor).parent).name);
+  state.selected = created;
+  log(`合并完成：生成 ${created.length} 个文件`);
+  toast(`生成了 ${created.length} 个合并文件`);
+  onSelectionChange(); save();
+};
+
+// ------------------------------------------------------------------ export
+const downloadsP = (window.claude && typeof window.claude.use === 'function') ? window.claude.use('downloads').catch(() => null) : Promise.resolve(null);
+async function saveFile(filename, data) {
+  const dl = await downloadsP;
+  if (dl) {
+    try { await dl.save({ filename, data }); log(`已保存：${filename}`); toast(`已保存 ${filename}`); }
+    catch (e) {
+      if (e && e.code === 'declined') toast('已取消保存');
+      else { log(`保存失败：${e && (e.message || e.code)}`, true); toast('保存失败，详见记录'); }
+    }
+    return;
+  }
+  const ext = filename.split('.').pop().toLowerCase();
+  const type = { csv: 'text/csv', json: 'application/json', zip: 'application/zip',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }[ext] || 'application/octet-stream';
+  const file = new File([data], filename, { type });
+  // iPhone/iPad: the share sheet ("存储到文件" -> Dropbox). It needs a fresh tap, because building
+  // a zip or workbook first uses up the tap that started the export.
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    await sheet('文件已生成', `<b>${esc(filename)}</b>。点"存储"后在分享面板里选"存储到文件"，就能放进 Dropbox。`, '',
+      [{ label: '取消', value: null }, { label: '存储', value: 'ok', primary: true }],
+      (scrim, close) => {
+        scrim.querySelector('form').onsubmit = async e => {
+          e.preventDefault();
+          close(null);
+          try { await navigator.share({ files: [file] }); log(`已保存：${filename}`); }
+          catch (err) { if (err && err.name !== 'AbortError') { log(`保存失败：${err.message}`, true); toast('保存失败，详见记录'); } }
+        };
+      });
+    return;
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(file); a.download = filename;
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+  log(`已保存：${filename}`);
+}
+const safeName = s => s.replace(/[\\/:*?"<>|]+/g, '_').slice(0, 120) || 'data';
+const stamp = () => { const d = new Date(), p = n => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`; };
+
+$('#btnExport').onclick = () => {
+  const files = selectedFiles();
+  const nAll = [...fm.nodes.values()].filter(n => !n.isFolder).length;
+  sheet('导出', '文件会先让你确认，在 iPhone 上可以存到“文件”App 里的 Dropbox 文件夹。', `<div class="menu">
+      <button class="btn" type="button" data-x="project" ${nAll ? '' : 'disabled'}>保存工程<small>.json · 全部 ${nAll} 个文件</small></button>
+      <button class="btn" type="button" data-x="csv" ${files.length ? '' : 'disabled'}>导出选中文件为 CSV<small>${files.length > 1 ? `.zip · ${files.length} 个` : '.csv'}</small></button>
+      <button class="btn" type="button" data-x="xlsx" ${files.length && state.x ? '' : 'disabled'}>导出 X/Y 到 Excel<small>.xlsx · 一个表</small></button>
+      <button class="btn" type="button" data-x="copy" ${files.length && state.x ? '' : 'disabled'}>复制 X/Y 到剪贴板<small>可粘贴到 Origin</small></button>
+    </div><p class="note">工程文件只有网页版能打开；需要给桌面版用时，导出 CSV 或 Excel。</p>`,
+    [{ label: '关闭', value: null }],
+    (scrim, close) => {
+      scrim.querySelector('.menu').addEventListener('click', e => {
+        const b = e.target.closest('[data-x]');
+        if (!b) return;
+        close(null);
+        ({ project: exportProject, csv: exportCsv, xlsx: exportXlsx, copy: copyXY })[b.dataset.x]();
+      });
+    });
+};
+async function exportProject() { await saveFile(`datapro_${stamp()}.json`, DP.projectToJson(fm)); }
+async function exportCsv() {
+  const files = selectedFiles();
+  if (files.length === 1) { await saveFile(`${safeName(files[0].replace(/\.[^.]+$/, ''))}.csv`, DP.toCsv(fm.current(files[0]))); return; }
+  await withBusy('正在打包…', async () => {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+    const zip = new JSZip(), used = new Set();
+    for (const f of files) {
+      let n = safeName(f) + '.csv', k = 1;
+      while (used.has(n)) n = `${safeName(f)}_${k++}.csv`;
+      used.add(n);
+      zip.file(n, DP.toCsv(fm.current(f)));
+    }
+    const blob = await zip.generateAsync({ type: 'blob' });
+    await saveFile(`datapro_${stamp()}.zip`, blob);
+  });
+}
+async function exportXlsx() {
+  const files = selectedFiles();
+  const { cols, headers } = DP.xyColumns(files, state.x, state.y, n => fm.current(n));
+  if (!cols.length) { toast(`选中的文件里没有 ${state.x} / ${state.y} 列`); return; }
+  await withBusy('正在生成 Excel…', async () => {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    const m = Math.max(...cols.map(c => c.length));
+    const aoa = [headers];
+    for (let i = 0; i < m; i++) aoa.push(cols.map(c => (i < c.length && Number.isFinite(c[i]) ? c[i] : (typeof c[i] === 'string' ? c[i] : null))));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(aoa), 'Combined_Data');
+    const out = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    await saveFile(`${safeName(state.x)}_${safeName(state.y)}_${stamp()}.xlsx`, new Blob([out]));
+  });
+}
+async function copyXY() {
+  const r = DP.xyTsv(selectedFiles(), state.x, state.y, n => fm.current(n));
+  if (!r) { toast(`选中的文件里没有 ${state.x} / ${state.y} 列`); return; }
+  try { await navigator.clipboard.writeText(r.text); toast(`已复制 ${r.pairs} 组 X/Y`); log(`已复制 ${r.pairs} 组 X/Y 到剪贴板`); }
+  catch (e) {
+    sheet('复制 X/Y', '这个窗口不允许直接写剪贴板。全选下面的文字后手动复制。',
+      `<textarea style="width:100%;height:200px;font:12px var(--mono)" readonly id="copyArea">${esc(r.text.slice(0, 200000))}</textarea>`,
+      [{ label: '关闭', value: null }]);
+    setTimeout(() => { const a = $('#copyArea'); if (a) { a.focus(); a.select(); } }, 50);
+  }
+}
+$('#btnCopy').onclick = () => { if (needXY()) copyXY(); };
+
+// ------------------------------------------------------------------ autosave (this browser only)
+const DB = 'datapro-web', STORE = 'kv';
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
+  });
+}
+async function kv(op, key, val) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const tx = db.transaction(STORE, op === 'get' ? 'readonly' : 'readwrite');
+    const st = tx.objectStore(STORE);
+    const q = op === 'get' ? st.get(key) : st.put(val, key);
+    q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+  });
+}
+let saveTimer;
+function save() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      await kv('put', 'project', DP.projectToJson(fm));
+      await kv('put', 'ui', JSON.stringify({ x: state.x, y: state.y, open: [...state.open], selected: state.selected,
+        scaleX: $('#scaleX').value, scaleY: $('#scaleY').value, markers: $('#optMarkers').checked, grid: $('#optGrid').checked, legend: $('#optLegend').checked }));
+    } catch (e) { /* storage unavailable: the session still works */ }
+  }, 600);
+}
+
+// ------------------------------------------------------------------ example data
+function exampleItems() {
+  const folder = EXAMPLE;
+  const items = [{ name: folder, isFolder: true, parent: null }];
+  let seed = 7;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+  for (const [T, rh, hc] of [[1.5, 12, 0.42], [3.0, 11, 0.28]]) {
+    const B = [], X1 = [], Hall1 = [], T1 = [];
+    const n = 160;
+    for (let i = 0; i <= 2 * n; i++) {
+      const b = i <= n ? 3 - 6 * i / n : -3 + 6 * (i - n) / n;
+      const branch = i <= n ? 1 : -1;
+      const m = Math.tanh((b + branch * hc) / 0.12);
+      B.push(+b.toFixed(4));
+      Hall1.push(rh * b + 9 * m + 0.6 * b * b + 0.08 * rnd());
+      X1.push(40 + 2.2 * b * b - 0.9 * Math.abs(m) + 0.4 * b + 0.05 * rnd());
+      T1.push(T + 0.01 * rnd());
+    }
+    items.push({ name: `示例 Hall 回线 T=${T} K.txt`, isFolder: false, parent: folder, table: DP.makeTable(['B', 'X1', 'Hall1', 'T1'], [B, X1, Hall1, T1]) });
+  }
+  return items;
+}
+
+// ------------------------------------------------------------------ start
+async function start() {
+  let restored = false;
+  try {
+    const p = await kv('get', 'project');
+    if (p) {
+      addItems(DP.projectFromJson(p), null, true);
+      const ui = JSON.parse((await kv('get', 'ui')) || '{}');
+      state.x = ui.x || ''; state.y = ui.y || '';
+      state.open = new Set((ui.open || []).filter(n => fm.nodes.has(n)));
+      state.selected = (ui.selected || []).filter(n => fm.nodes.has(n));
+      if (ui.scaleX) $('#scaleX').value = ui.scaleX;
+      if (ui.scaleY) $('#scaleY').value = ui.scaleY;
+      ['markers', 'grid', 'legend'].forEach(k => { if (k in ui) $('#opt' + k[0].toUpperCase() + k.slice(1)).checked = ui[k]; });
+      restored = fm.nodes.size > 0;
+    }
+  } catch (e) { /* no stored session */ }
+  if (restored) log('已恢复上次的工作区');
+  else {
+    addItems(exampleItems(), null, true);
+    state.selected = [EXAMPLE];
+    state.x = 'B'; state.y = 'Hall1';
+    log('载入了示例数据。点“导入”打开你自己的文件');
+  }
+  renderTree(); updateColumns(); plot();
+}
+matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => plot());
+// redraw when the plot box changes size (rotation, split view, fonts settling)
+let lastW = 0, resizeTimer;
+new ResizeObserver(entries => {
+  const w = Math.round(entries[0].contentRect.width);
+  if (Math.abs(w - lastW) < 2) return;
+  lastW = w;
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => { if (state.traceFiles.length) plot(); }, 120);
+}).observe($('#plot'));
+new MutationObserver(() => plot()).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+start();
+})();
+</script>
+
+</body>
+</html>
