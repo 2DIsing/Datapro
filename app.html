@@ -70,6 +70,7 @@ header.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; pad
   display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
 .tree .folder .name { font-weight: 500; }
 .tree .meta { font: 12px var(--mono); color: var(--muted); flex: none; }
+.tree .src { width: 14px; height: 14px; color: var(--muted); flex: none; }
 .tree .badge { font-size: 11px; color: var(--mark); border: 1px solid currentColor; border-radius: 4px; padding: 0 4px; flex: none; }
 .empty { color: var(--muted); padding: 14px 8px; font-size: 14px; }
 .treebar { display: flex; gap: 6px; flex-wrap: wrap; padding: 8px 10px 10px; border-top: 1px solid var(--line); }
@@ -93,6 +94,7 @@ select.col { width: 150px; }
 .chk { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; color: var(--muted); cursor: pointer; }
 .chk input { width: 16px; height: 16px; accent-color: var(--accent); }
 .selinfo { font: 13px var(--mono); color: var(--mark); }
+.plotbar .live { margin-left: auto; display: inline-flex; gap: 8px; align-items: center; }
 .plotempty { display: grid; place-items: center; height: 100%; color: var(--muted); text-align: center; padding: 20px; }
 
 .tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
@@ -152,6 +154,18 @@ select.col { width: 150px; }
 .sheet .menu .btn { justify-content: flex-start; min-height: 48px; }
 .sheet .menu .btn small { color: var(--muted); margin-left: auto; font-size: 12px; }
 .note { font-size: 13px; color: var(--muted); }
+.sheet .grow { flex: 1; }
+.dbxpath { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.dbxpath span { font: 13px var(--mono); color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
+.dbxlist { border: 1px solid var(--line); border-radius: 8px; max-height: 52vh; overflow: auto; overscroll-behavior: contain; }
+.dbxlist .ent { display: flex; align-items: center; gap: 8px; padding: 8px 10px; min-height: 44px; cursor: pointer; border-bottom: 1px solid var(--line); }
+.dbxlist .ent:last-child { border-bottom: 0; }
+.dbxlist .ent:hover { background: var(--soft); }
+.dbxlist .ent.sel { background: var(--accent-soft); }
+.dbxlist .ent svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.dbxlist .ent input { width: 18px; height: 18px; accent-color: var(--accent); flex: none; margin: 0; }
+.dbxlist .ent .nm { flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
+.dbxlist .ent small { font: 11px/1.35 var(--mono); color: var(--muted); text-align: right; flex: none; }
 
 .toast { position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); z-index: 60;
   background: var(--ink); color: var(--panel); padding: 9px 14px; border-radius: 9px; font-size: 14px; max-width: calc(100% - 32px);
@@ -167,6 +181,8 @@ select.col { width: 150px; }
     <div class="row">
       <button class="btn primary" id="btnImport" type="button">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg>导入</button>
+      <button class="btn" id="btnDbx" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4.5 12.5h7.2a2.8 2.8 0 0 0 .4-5.6 4 4 0 0 0-7.7-.9A3.3 3.3 0 0 0 4.5 12.5z"/></svg>Dropbox</button>
       <button class="btn" id="btnExport" type="button">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2.5 13.5h11"/></svg>导出</button>
       <input type="file" id="fileInput" multiple hidden>
@@ -208,6 +224,11 @@ select.col { width: 150px; }
         <label class="chk"><input type="checkbox" id="optMarkers" checked>点</label>
         <label class="chk"><input type="checkbox" id="optGrid" checked>网格</label>
         <label class="chk"><input type="checkbox" id="optLegend" checked>图例</label>
+        <span class="live" id="liveCtl">
+          <button class="btn small" id="btnRefresh" type="button" title="重新读取选中文件在 Dropbox 里的最新版本">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3"/></svg>刷新</button>
+          <label class="chk" title="每 5 秒检查一次，文件变了才重新读取"><input type="checkbox" id="optLive">自动</label>
+        </span>
       </div>
       <div id="plot"></div>
       <div class="plotfoot">
@@ -346,6 +367,7 @@ function columnsOf(files) {
 }
 
 // ------------------------------------------------------------------ tree
+const SRC_ICON = '<svg class="src" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-label="Dropbox"><title>来自 Dropbox，可以刷新</title><path d="M4.5 12.5h7.2a2.8 2.8 0 0 0 .4-5.6 4 4 0 0 0-7.7-.9A3.3 3.3 0 0 0 4.5 12.5z"/></svg>';
 const CARET = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 3 5 5-5 5"/></svg>';
 function renderTree() {
   orderSelection();
@@ -360,12 +382,12 @@ function renderTree() {
         const open = state.open.has(name);
         rows.push(`<div class="item folder${sel ? ' sel' : ''}" role="treeitem" aria-expanded="${open}" aria-selected="${sel}" tabindex="0" data-name="${esc(name)}" style="padding-left:${pad}px">
           <button class="caret${open ? ' open' : ''}" type="button" data-caret aria-label="${open ? '收起' : '展开'}">${CARET}</button>
-          <span class="tick"></span><span class="name">${esc(name)}</span><span class="meta">${fm.filesRecursive(name).length}</span></div>`);
+          <span class="tick"></span><span class="name">${esc(name)}</span>${n.src ? SRC_ICON : ''}<span class="meta">${fm.filesRecursive(name).length}</span></div>`);
         if (open) rec(n.children, depth + 1);
       } else {
         const t = fm.current(name);
         rows.push(`<div class="item${sel ? ' sel' : ''}" role="treeitem" aria-selected="${sel}" tabindex="0" data-name="${esc(name)}" style="padding-left:${pad}px">
-          <span class="spacer"></span><span class="tick"></span><span class="name">${esc(name)}</span>
+          <span class="spacer"></span><span class="tick"></span><span class="name">${esc(name)}</span>${n.src ? SRC_ICON : ''}
           ${n.modified ? '<span class="badge">已改</span>' : ''}<span class="meta">${DP.nrows(t).toLocaleString()}</span></div>`);
       }
     }
@@ -373,7 +395,7 @@ function renderTree() {
   rec(fm.rootItems, 0);
   const files = [...fm.nodes.values()].filter(n => !n.isFolder).length;
   $('#treeCount').textContent = files ? `${files} 个文件` + (state.selected.length ? ` · 已选 ${state.selected.length}` : '') : '';
-  el.innerHTML = rows.join('') || '<div class="empty">还没有数据。点上方“导入”，从“文件”App 里选 Dropbox 中的 txt、csv、hk 或 h5 文件。</div>';
+  el.innerHTML = rows.join('') || '<div class="empty">还没有数据。点上方“导入”从“文件”App 里选 txt、csv、hk 或 h5 文件；想随时刷新正在测的数据，就用“Dropbox”导入。</div>';
 }
 $('#tree').addEventListener('click', e => {
   const item = e.target.closest('.item');
@@ -708,37 +730,51 @@ $('#fileInput').onchange = async e => {
       catch (err) { log(`${file.name}：${err.message || err}`, true); toast(`${file.name} 读取失败`); }
     }
   });
-  if (target) state.open.add(target);
-  // select what was just imported so it plots right away
-  const added = [...fm.nodes.keys()].filter(n => !before.has(n));
-  const top = added.filter(n => !added.includes(fm.nodes.get(n).parent));
-  if (top.length) state.selected = top;
-  onSelectionChange(); save();
+  finishImport(target, before);
 };
 
-async function importFile(file, target) {
+// top-level nodes created since `before` was taken
+function topAdded(before) {
+  const added = [...fm.nodes.keys()].filter(n => !before.has(n));
+  return added.filter(n => !added.includes(fm.nodes.get(n).parent));
+}
+function finishImport(target, before) {
+  if (target) state.open.add(target);
+  // select what was just imported so it plots right away
+  const top = topAdded(before);
+  if (top.length) state.selected = top;
+  onSelectionChange(); save();
+}
+
+// parse first, add later: a refresh only drops the old nodes once the new file has parsed
+async function parseFile(file) {
   const lower = file.name.toLowerCase();
   const base = file.name.replace(/\.[^.]+$/, '');
   if (lower.endsWith('.h5') || lower.endsWith('.hdf5')) {
     const buf = new Uint8Array(await file.arrayBuffer());
     const r = await readH5(buf, base);
-    addItems(r.items, target, r.structured);
-    log(`已读取 HDF5：${file.name}（${r.items.filter(i => !i.isFolder).length} 个数据）`);
+    return { add: target => addItems(r.items, target, r.structured),
+      msg: `已读取 HDF5：${file.name}（${r.items.filter(i => !i.isFolder).length} 个数据）` };
   } else if (lower.endsWith('.hk')) {
     const r = DP.parseHkFile(await file.text());
-    const folder = fm.addFolder(base, target).name;
-    r.runs.forEach(run => fm.addFile(run.name, run.table, folder));
-    state.open.add(folder);
-    log(`已读取 HK：${base}（${r.runs.length} 个 run，${r.blocks} 个数据块${r.skipped ? `，跳过 ${r.skipped} 个` : ''}）`);
+    return {
+      add: target => {
+        const folder = fm.addFolder(base, target).name;
+        r.runs.forEach(run => fm.addFile(run.name, run.table, folder));
+        state.open.add(folder);
+      },
+      msg: `已读取 HK：${base}（${r.runs.length} 个 run，${r.blocks} 个数据块${r.skipped ? `，跳过 ${r.skipped} 个` : ''}）` };
   } else if (lower.endsWith('.json')) {
     const items = DP.projectFromJson(await file.text());
-    addItems(items, target, true);
-    log(`已打开工程：${file.name}`);
-  } else {
-    const t = DP.parseTextFile(await file.text());
-    fm.addFile(file.name, t, target);
-    log(`已读取：${file.name}（${DP.nrows(t)} 行，${t.columns.length} 列）`);
+    return { add: target => addItems(items, target, true), msg: `已打开工程：${file.name}` };
   }
+  const t = DP.parseTextFile(await file.text());
+  return { add: target => fm.addFile(file.name, t, target), msg: `已读取：${file.name}（${DP.nrows(t)} 行，${t.columns.length} 列）` };
+}
+async function importFile(file, target) {
+  const p = await parseFile(file);
+  p.add(target);
+  log(p.msg);
 }
 
 // mirrors load_hdf5_file: folders keep their parents, top level goes into the target folder
@@ -751,6 +787,275 @@ function addItems(items, target, structured) {
     if (it.isFolder && (!it.parent || !structured)) state.open.add(node.name);
   }
 }
+
+// ------------------------------------------------------------------ Dropbox (read-only; tokens stay in this browser)
+// Files imported from here remember their Dropbox path (node.src on the top-level nodes), so "刷新" can
+// re-download them in place. Sign-in is OAuth code flow with PKCE, so no secret lives in the page.
+const DBX_KEY = 'ld8d685cjjessf2';
+const DBX_LS = 'datapro-dbx';
+const DBX_REDIRECT = location.origin + location.pathname.replace(/index\.html$/, '');
+const inFrame = (() => { try { return window.top !== window; } catch (e) { return true; } })();
+const lsGet = k => { try { return JSON.parse(localStorage.getItem(k)); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage blocked */ } };
+const b64url = bytes => btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+
+async function dbxLogin() {
+  const verifier = b64url(crypto.getRandomValues(new Uint8Array(48)));
+  const challenge = b64url(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier))));
+  const st = b64url(crypto.getRandomValues(new Uint8Array(12)));
+  lsSet(DBX_LS + '-pending', { verifier, state: st });
+  await saveNow();   // the page is about to navigate away
+  location.href = 'https://www.dropbox.com/oauth2/authorize?' + new URLSearchParams({ client_id: DBX_KEY, response_type: 'code',
+    code_challenge: challenge, code_challenge_method: 'S256', token_access_type: 'offline', redirect_uri: DBX_REDIRECT, state: st });
+}
+async function dbxToken(body) {
+  const r = await fetch('https://api.dropboxapi.com/oauth2/token', { method: 'POST', body: new URLSearchParams({ client_id: DBX_KEY, ...body }) });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error_description || j.error || `HTTP ${r.status}`), { login: r.status === 400 || r.status === 401 });
+  return j;
+}
+// true when this page load is the way back from a successful Dropbox sign-in
+async function dbxFinishLogin() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('code') && !q.has('error')) return false;
+  history.replaceState(null, '', DBX_REDIRECT + location.hash);
+  const p = lsGet(DBX_LS + '-pending');
+  lsSet(DBX_LS + '-pending', null);
+  if (q.has('error')) { log('Dropbox 登录已取消', true); return false; }
+  if (!p || p.state !== q.get('state')) { log('Dropbox 登录失败：请再试一次', true); return false; }
+  try {
+    const j = await dbxToken({ grant_type: 'authorization_code', code: q.get('code'), code_verifier: p.verifier, redirect_uri: DBX_REDIRECT });
+    lsSet(DBX_LS, { refresh: j.refresh_token, access: j.access_token, exp: Date.now() + j.expires_in * 1000 });
+    log('已登录 Dropbox');
+    return true;
+  } catch (e) { log(`Dropbox 登录失败：${e.message}（回调地址 ${DBX_REDIRECT}）`, true); return false; }
+}
+async function dbxAccess(force) {
+  const a = lsGet(DBX_LS);
+  if (!a || !a.refresh) throw Object.assign(new Error('还没登录 Dropbox'), { login: true });
+  if (!force && a.access && a.exp - Date.now() > 60e3) return a.access;
+  let j;
+  try { j = await dbxToken({ grant_type: 'refresh_token', refresh_token: a.refresh }); }
+  catch (e) { if (e.login) lsSet(DBX_LS, null); throw e; }
+  lsSet(DBX_LS, { ...a, access: j.access_token, exp: Date.now() + j.expires_in * 1000 });
+  return j.access_token;
+}
+// HTTP headers are ASCII: escape the rest inside Dropbox-API-Arg
+const headerJson = o => JSON.stringify(o).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
+async function dbxCall(endpoint, arg, download = false) {
+  for (let retry = false; ; retry = true) {
+    const headers = { Authorization: 'Bearer ' + await dbxAccess(retry) };
+    const opts = { method: 'POST', headers };
+    if (download) headers['Dropbox-API-Arg'] = headerJson(arg);
+    else { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(arg); }
+    const r = await fetch(`https://${download ? 'content' : 'api'}.dropboxapi.com/2/${endpoint}`, opts);
+    if (r.status === 401 && !retry) continue;
+    if (r.ok) return download ? r.blob() : r.json();
+    let msg = await r.text().catch(() => '');
+    try { msg = JSON.parse(msg).error_summary || msg; } catch (e) { /* plain text error */ }
+    throw Object.assign(new Error(msg || `HTTP ${r.status}`), { notFound: /not_found/.test(msg), login: r.status === 401 });
+  }
+}
+async function dbxList(path) {
+  let r = await dbxCall('files/list_folder', { path, limit: 2000 });
+  const out = r.entries.slice();
+  while (r.has_more) { r = await dbxCall('files/list_folder/continue', { cursor: r.cursor }); out.push(...r.entries); }
+  return out;
+}
+// metadata first, so an unchanged file costs one small request
+async function dbxFetch(path, knownRev) {
+  const meta = await dbxCall('files/get_metadata', { path });
+  if (meta['.tag'] !== 'file') throw new Error('不是文件');
+  if (meta.rev === knownRev) return { meta };
+  const blob = await dbxCall('files/download', { path: 'rev:' + meta.rev }, true);
+  return { meta, file: new File([blob], meta.name) };
+}
+async function dbxProblem(e) {
+  if (!e.login) { log(`Dropbox：${e.message}`, true); toast('Dropbox 读取失败'); return; }
+  if (await confirmSheet('需要登录 Dropbox', '第一次使用，或者登录已经过期。只申请读取权限，登录信息只存在这台设备的浏览器里。', '去登录')) dbxLogin();
+}
+
+const FOLDER_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5v8h13v-7H8L6.5 4h-5z"/></svg>';
+const fmtSize = b => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+const fmtTime = s => new Date(s).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+function dbxBrowse() {
+  return new Promise(resolve => {
+    const picked = new Map();
+    let dir = lsGet(DBX_LS + '-dir') || '', entries = [];
+    const scrim = document.createElement('div');
+    scrim.className = 'scrim';
+    scrim.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="从 Dropbox 导入">
+      <h3>从 Dropbox 导入</h3><p class="sub">导入后选中文件点“刷新”，就会读 Dropbox 里的最新版本。</p>
+      <div class="dbxpath"><button class="btn small" type="button" data-up>上一级</button><span data-path></span></div>
+      <div class="dbxlist" data-list></div>
+      <div class="actions"><button class="btn small" type="button" data-logout>退出登录</button><span class="grow"></span>
+        <button class="btn" type="button" data-cancel>取消</button><button class="btn primary" type="button" data-ok disabled>导入</button></div></div>`;
+    const q = s => scrim.querySelector(s);
+    const list = q('[data-list]');
+    const close = v => { scrim.remove(); resolve(v); };
+    const updateOk = () => { q('[data-ok]').disabled = !picked.size; q('[data-ok]').textContent = picked.size ? `导入 ${picked.size} 个` : '导入'; };
+    async function load(path) {
+      dir = path;
+      lsSet(DBX_LS + '-dir', dir);
+      q('[data-path]').textContent = dir || 'Dropbox';
+      q('[data-up]').disabled = !dir;
+      list.innerHTML = '<div class="empty">正在读取…</div>';
+      let got;
+      try { got = await dbxList(dir); }
+      catch (e) {
+        if (path !== dir) return;
+        if (e.notFound && dir) { load(''); return; }   // the remembered folder is gone
+        if (e.login) { close(null); dbxProblem(e); return; }
+        list.innerHTML = `<div class="empty">读取失败：${esc(e.message)}</div>`;
+        return;
+      }
+      if (path !== dir) return;   // navigated elsewhere meanwhile
+      entries = got;
+      render();
+    }
+    function render() {
+      const folders = entries.filter(e => e['.tag'] === 'folder').sort((a, b) => a.name.localeCompare(b.name));
+      // newest first: the file being measured is usually on top
+      const files = entries.filter(e => e['.tag'] === 'file').sort((a, b) => b.server_modified.localeCompare(a.server_modified));
+      list.innerHTML = [
+        ...folders.map(f => `<div class="ent" role="button" tabindex="0" data-dir="${esc(f.path_display)}">${FOLDER_ICON}<span class="nm">${esc(f.name)}</span>${CARET}</div>`),
+        ...files.map(f => `<label class="ent${picked.has(f.path_lower) ? ' sel' : ''}"><input type="checkbox" data-file="${esc(f.path_lower)}"${picked.has(f.path_lower) ? ' checked' : ''}>
+          <span class="nm">${esc(f.name)}</span><small>${fmtSize(f.size)}<br>${fmtTime(f.server_modified)}</small></label>`),
+      ].join('') || '<div class="empty">这个文件夹是空的</div>';
+    }
+    list.addEventListener('click', e => { const d = e.target.closest('[data-dir]'); if (d) load(d.dataset.dir); });
+    list.addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.dataset.dir) { e.preventDefault(); load(e.target.dataset.dir); } });
+    list.addEventListener('change', e => {
+      const p = e.target.dataset.file;
+      if (!p) return;
+      if (e.target.checked) picked.set(p, entries.find(x => x.path_lower === p)); else picked.delete(p);
+      e.target.closest('.ent').classList.toggle('sel', e.target.checked);
+      updateOk();
+    });
+    q('[data-up]').onclick = () => load(dir.slice(0, dir.lastIndexOf('/')));
+    q('[data-cancel]').onclick = () => close(null);
+    q('[data-ok]').onclick = () => close([...picked.values()]);
+    q('[data-logout]').onclick = () => { lsSet(DBX_LS, null); log('已退出 Dropbox'); close(null); };
+    scrim.addEventListener('click', e => { if (e.target === scrim) close(null); });
+    scrim.addEventListener('keydown', e => { if (e.key === 'Escape') close(null); });
+    document.body.append(scrim);
+    load(dir);
+  });
+}
+
+async function dbxImport() {
+  if (inFrame) { toast('Dropbox 只能在独立网页版里用'); return; }
+  if (!lsGet(DBX_LS)?.refresh) { dbxProblem({ login: true }); return; }
+  const picked = await dbxBrowse();
+  if (!picked || !picked.length) return;
+  const target = targetFolder();
+  const before = new Set(fm.nodes.keys());
+  let problem = null;
+  await withBusy(`正在从 Dropbox 读取 ${picked.length} 个文件…`, async () => {
+    for (const ent of picked) {
+      try {
+        const { meta, file } = await dbxFetch(ent.path_lower);
+        const p = await parseFile(file);
+        const b = new Set(fm.nodes.keys());
+        p.add(target);
+        const src = { path: meta.path_lower, rev: meta.rev };
+        topAdded(b).forEach(n => { fm.nodes.get(n).src = src; });
+        log(p.msg);
+      } catch (err) {
+        if (err.login) { problem = err; break; }
+        log(`${ent.name}：${err.message || err}`, true); toast(`${ent.name} 读取失败`);
+      }
+    }
+  });
+  finishImport(target, before);
+  if (problem) dbxProblem(problem);
+}
+
+// path -> top-level node names imported from that Dropbox file, in tree order
+function dbxSources() {
+  const m = new Map();
+  for (const { name } of fm.walk()) {
+    const src = fm.nodes.get(name).src;
+    if (src) { if (!m.has(src.path)) m.set(src.path, []); m.get(src.path).push(name); }
+  }
+  return m;
+}
+function srcOf(name) {
+  for (let n = fm.nodes.get(name); n; n = n.parent ? fm.nodes.get(n.parent) : null) if (n.src) return n.src.path;
+  return null;
+}
+const rowsOf = names => names.reduce((s, n) => s + fm.filesRecursive(n).reduce((t, f) => t + DP.nrows(fm.current(f)), 0), 0);
+// swap the nodes of one Dropbox file for its latest version, at the same place under the same names
+async function refreshSource(names, keepEdits) {
+  const src = fm.nodes.get(names[0]).src;
+  const files = names.flatMap(n => fm.filesRecursive(n));
+  if (keepEdits && files.some(f => fm.nodes.get(f).modified)) return { skipped: true };
+  const { meta, file } = await dbxFetch(src.path, src.rev);
+  if (!file) return null;
+  const p = await parseFile(file);
+  const parent = fm.nodes.get(names[0]).parent;
+  const at = fm.siblings(names[0]).indexOf(names[0]);
+  const rows = rowsOf(names), open = new Set(state.open);
+  const edited = files.some(f => fm.nodes.get(f).modified);
+  files.forEach(f => state.points.delete(f));
+  names.forEach(n => fm.deleteItem(n));
+  const before = new Set(fm.nodes.keys());
+  p.add(parent);
+  const top = topAdded(before);
+  const nsrc = { path: meta.path_lower, rev: meta.rev };
+  top.forEach((n, i) => { fm.nodes.get(n).src = nsrc; fm.moveItem(n, parent, at + i); });
+  state.open = new Set([...open].filter(n => fm.nodes.has(n)));
+  return { name: meta.name, added: rowsOf(top) - rows, edited };
+}
+let refreshing = false;
+async function refreshDropbox(auto = false) {
+  if (refreshing) return;
+  const groups = dbxSources();
+  const paths = new Set(state.selected.length ? selectedFiles().map(srcOf).filter(Boolean) : groups.keys());
+  if (!paths.size) {
+    if (!auto) toast(groups.size ? '选中的文件不是从 Dropbox 导入的' : '用“Dropbox”按钮导入的文件才能刷新');
+    return;
+  }
+  refreshing = true;
+  $('#btnRefresh').disabled = true;
+  const done = [];
+  let skipped = 0, problem = null;
+  try {
+    for (const p of paths) {
+      try {
+        // auto refresh never throws away deleted points or symmetrizing
+        const r = await refreshSource(groups.get(p), auto);
+        if (r?.skipped) skipped++; else if (r) done.push(r);
+      } catch (e) {
+        if (e.login) { problem = e; break; }
+        log(`刷新 ${p} 失败：${e.notFound ? 'Dropbox 里找不到这个文件了' : e.message}`, true);
+      }
+    }
+  } finally { refreshing = false; $('#btnRefresh').disabled = false; }
+  if (done.length) {
+    renderTree(); updateColumns(); plot(); save();
+    log('已刷新：' + done.map(d => `${d.name}（${d.added >= 0 ? '+' : ''}${d.added} 行${d.edited ? '，之前的修改已丢弃' : ''}）`).join('，'));
+  } else if (!auto && !problem) toast(skipped ? '改过的文件不会自动刷新' : '已经是最新的');
+  if (problem) {
+    if (auto) { $('#optLive').checked = false; setLive(false); }
+    dbxProblem(problem);
+  }
+}
+let liveTimer = null;
+function setLive(on) {
+  clearInterval(liveTimer);
+  liveTimer = on ? setInterval(liveTick, 5000) : null;
+  if (on) liveTick();
+}
+function liveTick() {
+  // stay out of the way while a dialog, the mapping view or a point selection is open
+  if (document.hidden || document.querySelector('.scrim, .busy, .mapview') || countPoints()) return;
+  refreshDropbox(true);
+}
+$('#btnDbx').onclick = dbxImport;
+$('#btnRefresh').onclick = () => refreshDropbox();
+$('#optLive').onchange = e => setLive(e.target.checked);
+if (inFrame) { $('#btnDbx').hidden = true; $('#liveCtl').hidden = true; }
 
 // ------------------------------------------------------------------ HDF5 via h5wasm
 let h5Ready = null;
@@ -1429,16 +1734,18 @@ async function kv(op, key, val) {
   });
 }
 let saveTimer;
-function save() {
+async function saveNow() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(async () => {
-    try {
-      await kv('put', 'project', DP.projectToJson(fm));
-      await kv('put', 'ui', JSON.stringify({ x: state.x, y: state.y, open: [...state.open], selected: state.selected,
-        scaleX: $('#scaleX').value, scaleY: $('#scaleY').value, markers: $('#optMarkers').checked, grid: $('#optGrid').checked, legend: $('#optLegend').checked }));
-    } catch (e) { /* storage unavailable: the session still works */ }
-  }, 600);
+  try {
+    await kv('put', 'project', DP.projectToJson(fm));
+    await kv('put', 'ui', JSON.stringify({ x: state.x, y: state.y, open: [...state.open], selected: state.selected,
+      scaleX: $('#scaleX').value, scaleY: $('#scaleY').value, markers: $('#optMarkers').checked, grid: $('#optGrid').checked, legend: $('#optLegend').checked }));
+    const sources = {};
+    for (const [name, n] of fm.nodes) if (n.src) sources[name] = n.src;
+    await kv('put', 'sources', JSON.stringify(sources));
+  } catch (e) { /* storage unavailable: the session still works */ }
 }
+function save() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
 
 // ------------------------------------------------------------------ example data
 function exampleItems() {
@@ -1477,6 +1784,7 @@ async function start() {
       if (ui.scaleX) $('#scaleX').value = ui.scaleX;
       if (ui.scaleY) $('#scaleY').value = ui.scaleY;
       ['markers', 'grid', 'legend'].forEach(k => { if (k in ui) $('#opt' + k[0].toUpperCase() + k.slice(1)).checked = ui[k]; });
+      for (const [name, src] of Object.entries(JSON.parse((await kv('get', 'sources')) || '{}'))) if (fm.nodes.has(name)) fm.nodes.get(name).src = src;
       restored = fm.nodes.size > 0;
     }
   } catch (e) { /* no stored session */ }
@@ -1488,6 +1796,7 @@ async function start() {
     log('载入了示例数据。点“导入”打开你自己的文件');
   }
   renderTree(); updateColumns(); plot();
+  if (await dbxFinishLogin()) dbxImport();
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => plot());
 // redraw when the plot box changes size (rotation, split view, fonts settling)
