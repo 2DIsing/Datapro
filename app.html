@@ -877,6 +877,7 @@ async function dbxProblem(e) {
 
 const FOLDER_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M1.5 4.5v8h13v-7H8L6.5 4h-5z"/></svg>';
 const fmtSize = b => b < 1024 ? `${b} B` : b < 1048576 ? `${(b / 1024).toFixed(1)} KB` : `${(b / 1048576).toFixed(1)} MB`;
+const fmtClock = s => new Date(s).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 const fmtTime = s => new Date(s).toLocaleString([], { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 function dbxBrowse() {
   return new Promise(resolve => {
@@ -991,7 +992,7 @@ async function refreshSource(names, keepEdits) {
   const files = names.flatMap(n => fm.filesRecursive(n));
   if (keepEdits && files.some(f => fm.nodes.get(f).modified)) return { skipped: true };
   const { meta, file } = await dbxFetch(src.path, src.rev);
-  if (!file) return null;
+  if (!file) return { unchanged: meta.server_modified };
   const p = await parseFile(file);
   const parent = fm.nodes.get(names[0]).parent;
   const at = fm.siblings(names[0]).indexOf(names[0]);
@@ -1005,7 +1006,7 @@ async function refreshSource(names, keepEdits) {
   const nsrc = { path: meta.path_lower, rev: meta.rev };
   top.forEach((n, i) => { fm.nodes.get(n).src = nsrc; fm.moveItem(n, parent, at + i); });
   state.open = new Set([...open].filter(n => fm.nodes.has(n)));
-  return { name: meta.name, added: rowsOf(top) - rows, edited };
+  return { name: meta.name, added: rowsOf(top) - rows, edited, modified: meta.server_modified };
 }
 let refreshing = false;
 async function refreshDropbox(auto = false) {
@@ -1019,23 +1020,28 @@ async function refreshDropbox(auto = false) {
   refreshing = true;
   $('#btnRefresh').disabled = true;
   const done = [];
-  let skipped = 0, problem = null;
+  let skipped = 0, failed = 0, problem = null, unchanged = '';
   try {
     for (const p of paths) {
       try {
         // auto refresh never throws away deleted points or symmetrizing
         const r = await refreshSource(groups.get(p), auto);
-        if (r?.skipped) skipped++; else if (r) done.push(r);
+        if (r.skipped) skipped++; else if (r.unchanged) { if (r.unchanged > unchanged) unchanged = r.unchanged; } else done.push(r);
       } catch (e) {
         if (e.login) { problem = e; break; }
+        failed++;
         log(`刷新 ${p} 失败：${e.notFound ? 'Dropbox 里找不到这个文件了' : e.message}`, true);
       }
     }
   } finally { refreshing = false; $('#btnRefresh').disabled = false; }
   if (done.length) {
     renderTree(); updateColumns(); plot(); save();
-    log('已刷新：' + done.map(d => `${d.name}（${d.added >= 0 ? '+' : ''}${d.added} 行${d.edited ? '，之前的修改已丢弃' : ''}）`).join('，'));
-  } else if (!auto && !problem) toast(skipped ? '改过的文件不会自动刷新' : '已经是最新的');
+    log('已刷新：' + done.map(d => `${d.name}（${d.added >= 0 ? '+' : ''}${d.added} 行，Dropbox 上 ${fmtClock(d.modified)} 的版本${d.edited ? '，之前的修改已丢弃' : ''}）`).join('，'));
+  } else if (!auto && !problem) {
+    // say how old Dropbox's copy is, so a lagging sync is told apart from a failed refresh
+    const msg = failed ? '刷新失败，详情见底部记录' : skipped ? '改过的文件不会自动刷新' : `没有新数据：Dropbox 上还是 ${fmtClock(unchanged)} 的版本`;
+    toast(msg); log(msg, failed > 0);
+  }
   if (problem) {
     if (auto) { $('#optLive').checked = false; setLive(false); }
     dbxProblem(problem);
