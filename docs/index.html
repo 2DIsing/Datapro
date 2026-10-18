@@ -2404,7 +2404,7 @@ async function dbxLogin() {
     code_challenge: challenge, code_challenge_method: 'S256', token_access_type: 'offline', redirect_uri: DBX_REDIRECT, state: st });
 }
 async function dbxToken(body) {
-  const r = await fetch('https://api.dropboxapi.com/oauth2/token', { method: 'POST', body: new URLSearchParams({ client_id: DBX_KEY, ...body }) });
+  const r = await fetch('https://api.dropboxapi.com/oauth2/token', { method: 'POST', cache: 'no-store', body: new URLSearchParams({ client_id: DBX_KEY, ...body }) });
   const j = await r.json().catch(() => ({}));
   if (!r.ok) throw Object.assign(new Error(j.error_description || j.error || `HTTP ${r.status}`), { login: r.status === 400 || r.status === 401 });
   return j;
@@ -2440,7 +2440,7 @@ const headerJson = o => JSON.stringify(o).replace(/[\u007f-￿]/g, c => '\\u' + 
 async function dbxCall(endpoint, arg, download = false) {
   for (let retry = false; ; retry = true) {
     const headers = { Authorization: 'Bearer ' + await dbxAccess(retry) };
-    const opts = { method: 'POST', headers };
+    const opts = { method: 'POST', headers, cache: 'no-store' };
     if (download) headers['Dropbox-API-Arg'] = headerJson(arg);
     else { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(arg); }
     const r = await fetch(`https://${download ? 'content' : 'api'}.dropboxapi.com/2/${endpoint}`, opts);
