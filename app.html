@@ -28,6 +28,7 @@ header.top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; pad
 .brand b { font-weight: 600; font-size: 19px; letter-spacing: .01em; }
 .brand span { color: var(--muted); font-size: 13px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+@media (max-width: 430px) { header.top .row { gap: 6px; } header.top .btn { padding-inline: 9px; } }
 
 .btn { border: 1px solid var(--line); background: var(--panel); border-radius: var(--r); padding: 8px 12px; min-height: 40px;
   cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
@@ -155,6 +156,9 @@ select.col { width: 150px; }
 .sheet .menu .btn small { color: var(--muted); margin-left: auto; font-size: 12px; }
 .note { font-size: 13px; color: var(--muted); }
 .sheet .grow { flex: 1; }
+.sheet .inline { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.sheet .inline input[type=text] { flex: 1; min-width: 8em; }
+.sheet fieldset .dbxlist { max-height: 40vh; }
 .dbxpath { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .dbxpath span { font: 13px var(--mono); color: var(--muted); overflow-wrap: anywhere; min-width: 0; }
 .dbxlist { border: 1px solid var(--line); border-radius: 8px; max-height: 52vh; overflow: auto; overscroll-behavior: contain; }
@@ -183,6 +187,8 @@ select.col { width: 150px; }
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 2v8M4.5 6.5 8 10l3.5-3.5M2.5 13.5h11"/></svg>导入</button>
       <button class="btn" id="btnDbx" type="button">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M4.5 12.5h7.2a2.8 2.8 0 0 0 .4-5.6 4 4 0 0 0-7.7-.9A3.3 3.3 0 0 0 4.5 12.5z"/></svg>Dropbox</button>
+      <button class="btn" id="btnPeer" type="button">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3.5 12.5a6.4 6.4 0 0 1 0-9M12.5 3.5a6.4 6.4 0 0 1 0 9M5.6 10.4a3.4 3.4 0 0 1 0-4.8M10.4 5.6a3.4 3.4 0 0 1 0 4.8"/><circle cx="8" cy="8" r="1"/></svg>联机</button>
       <button class="btn" id="btnExport" type="button">
         <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 10V2M4.5 5.5 8 2l3.5 3.5M2.5 13.5h11"/></svg>导出</button>
       <input type="file" id="fileInput" multiple hidden>
@@ -373,7 +379,8 @@ const SRC_ICONS = {
   dropbox: '<svg class="src" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-label="Dropbox"><title>来自 Dropbox，可以刷新</title><path d="M4.5 12.5h7.2a2.8 2.8 0 0 0 .4-5.6 4 4 0 0 0-7.7-.9A3.3 3.3 0 0 0 4.5 12.5z"/></svg>',
   local: '<svg class="src" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-label="本地文件"><title>本地文件，可以刷新</title><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3"/></svg>',
 };
-const srcIcon = n => n.src ? SRC_ICONS[n.src.local ? 'local' : 'dropbox'] : '';
+SRC_ICONS.peer = '<svg class="src" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-label="测试电脑"><title>来自测试电脑，可以刷新</title><path d="M3.5 12.5a6.4 6.4 0 0 1 0-9M12.5 3.5a6.4 6.4 0 0 1 0 9M5.6 10.4a3.4 3.4 0 0 1 0-4.8M10.4 5.6a3.4 3.4 0 0 1 0 4.8"/><circle cx="8" cy="8" r="1"/></svg>';
+const srcIcon = n => n.src ? SRC_ICONS[n.src.local ? 'local' : n.src.peer ? 'peer' : 'dropbox'] : '';
 const CARET = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 3 5 5-5 5"/></svg>';
 function renderTree() {
   orderSelection();
@@ -859,18 +866,23 @@ async function dbxAccess(force) {
 }
 // HTTP headers are ASCII: escape the rest inside Dropbox-API-Arg
 const headerJson = o => JSON.stringify(o).replace(/[\u007f-￿]/g, c => '\\u' + c.charCodeAt(0).toString(16).padStart(4, '0'));
-async function dbxCall(endpoint, arg, download = false) {
+// download: returns a Blob; upload (a string or Blob): sends it as the file body
+async function dbxCall(endpoint, arg, download = false, upload) {
+  const content = download || upload !== undefined;
   for (let retry = false; ; retry = true) {
     const headers = { Authorization: 'Bearer ' + await dbxAccess(retry) };
     const opts = { method: 'POST', headers, cache: 'no-store' };
-    if (download) headers['Dropbox-API-Arg'] = headerJson(arg);
-    else { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(arg); }
-    const r = await fetch(`https://${download ? 'content' : 'api'}.dropboxapi.com/2/${endpoint}`, opts);
+    if (content) headers['Dropbox-API-Arg'] = headerJson(arg);
+    if (upload !== undefined) { headers['Content-Type'] = 'application/octet-stream'; opts.body = upload; }
+    else if (!content) { headers['Content-Type'] = 'application/json'; opts.body = JSON.stringify(arg); }
+    const r = await fetch(`https://${content ? 'content' : 'api'}.dropboxapi.com/2/${endpoint}`, opts);
     if (r.status === 401 && !retry) continue;
     if (r.ok) return download ? r.blob() : r.json();
     let msg = await r.text().catch(() => '');
     try { msg = JSON.parse(msg).error_summary || msg; } catch (e) { /* plain text error */ }
-    throw Object.assign(new Error(msg || `HTTP ${r.status}`), { notFound: /not_found/.test(msg), login: r.status === 401 });
+    // a token from before a permission was added lacks it until the next sign-in
+    const scope = /required scope|missing_scope/.test(msg);
+    throw Object.assign(new Error(msg || `HTTP ${r.status}`), { notFound: /not_found/.test(msg), login: r.status === 401 || scope, scope });
   }
 }
 async function dbxList(path) {
@@ -889,6 +901,10 @@ async function dbxFetch(path, knownRev) {
 }
 async function dbxProblem(e) {
   if (!e.login) { log(`Dropbox：${e.message}`, true); toast('Dropbox 读取失败'); return; }
+  if (e.scope) {
+    if (await confirmSheet('Dropbox 权限不够', '联机要用到 files.content.write：在 Dropbox 开发者后台的 Permissions 里勾上它并点 Submit，再回来重新登录。', '重新登录')) dbxLogin();
+    return;
+  }
   if (await confirmSheet('需要登录 Dropbox', '第一次使用，或者登录已经过期。只申请读取权限，登录信息只存在这台设备的浏览器里。', '去登录')) dbxLogin();
 }
 
@@ -1040,7 +1056,311 @@ async function localFetch(src, ask) {
   return { file, name: f.name, time, src: { ...src, rev: stampOf(file) } };
 }
 
-// ------------------------------------------------------------------ refresh (Dropbox or local)
+// ------------------------------------------------------------------ 联机: data straight from a measurement PC
+// One computer is marked 测试电脑. It leaves a small host-<id>.json in PEER_DIR, and a device that wants its data
+// drops a WebRTC offer next to it and picks up the answer. Dropbox only carries this handshake (a few KB, deleted
+// once read); the data itself goes device to device. Files from it: src = { path: 'peer:<host>:<id>', peer, fid, rev }.
+const PEER_DIR = '/DataPro 联机';
+const ICE = [{ urls: ['stun:stun.l.google.com:19302', 'stun:stun.cloudflare.com:3478'] }];
+const CHUNK = 64 * 1024;
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const deviceId = (() => {
+  let v = lsGet('datapro-device');
+  if (!v) { v = b64url(crypto.getRandomValues(new Uint8Array(9))); lsSet('datapro-device', v); }
+  return v;
+})();
+const putJson = (path, o) => dbxCall('files/upload', { path, mode: 'overwrite', mute: true }, false, JSON.stringify(o));
+const getJson = async path => JSON.parse(await (await dbxCall('files/download', { path }, true)).text());
+const dropFile = path => dbxCall('files/delete_v2', { path }).catch(() => {});
+// non-trickle ICE: wait until the candidates are in the description, so one file round trip is enough
+function iceDone(pc) {
+  return new Promise(res => {
+    if (pc.iceGatheringState === 'complete') return res();
+    const t = setTimeout(res, 5000);
+    pc.addEventListener('icegatheringstatechange', () => { if (pc.iceGatheringState === 'complete') { clearTimeout(t); res(); } });
+  });
+}
+
+// --- host side (测试电脑)
+const host = { on: false, name: '', peers: new Map(), beat: null, run: 0 };
+const hostDir = () => `${PEER_DIR}/${deviceId}`;
+function sharedFiles() {
+  return [...sources()].filter(([p]) => p.startsWith('local:') && handles.has(p))
+    .map(([p, names]) => ({ id: p, name: handles.get(p).name || names[0] }));
+}
+async function hostStart(name) {
+  // reading the shared files later happens without a click, so ask for permission now
+  for (const f of sharedFiles()) {
+    const h = handles.get(f.id);
+    try { if (await h.queryPermission({ mode: 'read' }) !== 'granted') await h.requestPermission({ mode: 'read' }); } catch (e) { /* stays unreadable */ }
+  }
+  host.on = true; host.name = name; host.run++;
+  lsSet('datapro-host', { name, on: true });
+  const announce = () => putJson(`${PEER_DIR}/host-${deviceId}.json`, { id: deviceId, name, at: Date.now() }).catch(() => {});
+  await putJson(`${PEER_DIR}/host-${deviceId}.json`, { id: deviceId, name, at: Date.now() });
+  clearInterval(host.beat);
+  host.beat = setInterval(announce, 60e3);
+  hostWatch(host.run).catch(e => { log(`测试电脑停止接收连接：${e.message}`, true); });
+  log(`这台电脑是测试电脑“${name}”，共享 ${sharedFiles().length} 个文件`);
+}
+function hostStop() {
+  host.on = false; host.run++;
+  clearInterval(host.beat);
+  lsSet('datapro-host', { name: host.name, on: false });
+  for (const pc of host.peers.values()) pc.close();
+  host.peers.clear();
+  dropFile(`${PEER_DIR}/host-${deviceId}.json`);
+  log('已停止测试电脑');
+}
+// wait for offers: list_folder/longpoll returns as soon as the folder changes; plain polling if it is unavailable
+async function hostWatch(run) {
+  const dir = hostDir();
+  await dbxCall('files/create_folder_v2', { path: dir }).catch(e => { if (!/conflict/.test(e.message)) throw e; });
+  let page = await dbxCall('files/list_folder', { path: dir });
+  for (;;) {
+    for (const e of page.entries) if (e['.tag'] === 'file' && /^offer-.+\.json$/.test(e.name)) hostAnswer(e.path_lower, run).catch(err => log(`连接请求出错：${err.message}`, true));
+    if (page.has_more) { page = await dbxCall('files/list_folder/continue', { cursor: page.cursor }); continue; }
+    const cursor = page.cursor;
+    for (;;) {
+      if (host.run !== run) return;
+      try {
+        const r = await fetch('https://notify.dropboxapi.com/2/files/list_folder/longpoll', { method: 'POST', cache: 'no-store',
+          headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ cursor, timeout: 30 }) });
+        const j = await r.json();
+        if (j.backoff) await sleep(j.backoff * 1000);
+        if (j.changes) break;
+      } catch (e) { await sleep(3000); break; }
+    }
+    if (host.run !== run) return;
+    page = await dbxCall('files/list_folder/continue', { cursor });
+  }
+}
+async function hostAnswer(path, run) {
+  const offer = await getJson(path).catch(() => null);
+  dropFile(path);
+  if (!offer || host.run !== run) return;
+  const pc = new RTCPeerConnection({ iceServers: ICE });
+  pc.ondatachannel = e => serveChannel(e.channel);
+  pc.onconnectionstatechange = () => { if (['failed', 'closed'].includes(pc.connectionState) && host.peers.get(offer.client) === pc) host.peers.delete(offer.client); };
+  await pc.setRemoteDescription({ type: 'offer', sdp: offer.sdp });
+  await pc.setLocalDescription(await pc.createAnswer());
+  await iceDone(pc);
+  host.peers.get(offer.client)?.close();
+  host.peers.set(offer.client, pc);
+  await putJson(`${hostDir()}/answer-${offer.client}.json`, { sdp: pc.localDescription.sdp, nonce: offer.nonce });
+}
+function serveChannel(ch) {
+  ch.binaryType = 'arraybuffer';
+  ch.bufferedAmountLowThreshold = 1 << 20;
+  const send = o => ch.send(JSON.stringify(o));
+  let queue = Promise.resolve();   // one reply at a time, so file chunks never interleave
+  ch.onmessage = ev => {
+    const m = JSON.parse(ev.data);
+    queue = queue.then(async () => {
+      if (!host.on) return send({ t: 'err', req: m.req, msg: '那台电脑已经不是测试电脑了' });
+      if (m.t === 'list') return send({ t: 'list', req: m.req, name: host.name, files: sharedFiles() });
+      if (m.t !== 'get') return;
+      const h = handles.get(m.id);
+      if (!h || !sharedFiles().some(f => f.id === m.id)) return send({ t: 'err', req: m.req, msg: '测试电脑上已经没有这个文件了' });
+      if (await h.queryPermission({ mode: 'read' }) !== 'granted') return send({ t: 'err', req: m.req, msg: '测试电脑需要重新允许读取这个文件：在那台电脑上点一次“联机”' });
+      const f = await h.getFile();
+      const time = new Date(f.lastModified).toISOString();
+      if (stampOf(f) === m.rev) return send({ t: 'same', req: m.req, time });
+      const file = await readHandle(h);
+      const buf = await file.arrayBuffer();
+      send({ t: 'file', req: m.req, name: file.name, rev: stampOf(file), time: new Date(file.lastModified).toISOString() });
+      for (let i = 0; i < buf.byteLength; i += CHUNK) {
+        if (ch.bufferedAmount > 4 << 20) await new Promise(r => ch.addEventListener('bufferedamountlow', r, { once: true }));
+        ch.send(buf.slice(i, i + CHUNK));
+      }
+      send({ t: 'end', req: m.req });
+    }).catch(e => { try { send({ t: 'err', req: m.req, msg: e.message }); } catch (_) { /* channel gone */ } });
+  };
+}
+
+// --- client side
+const links = new Map();   // host id -> { ch, pending, connecting }
+async function listHosts() {
+  let entries;
+  try { entries = await dbxList(PEER_DIR); } catch (e) { if (e.notFound) return []; throw e; }
+  const out = [];
+  for (const e of entries) {
+    const m = /^host-(.+)\.json$/.exec(e.name);
+    if (!m || m[1] === deviceId) continue;
+    const h = await getJson(e.path_lower).catch(() => null);
+    // heartbeat every minute: older than a few minutes means DataPro is closed there
+    if (h) out.push({ ...h, online: Date.now() - Date.parse(e.server_modified) < 5 * 60e3 });
+  }
+  return out.sort((a, b) => b.online - a.online || a.name.localeCompare(b.name));
+}
+function connectHost(id) {
+  const cur = links.get(id);
+  if (cur?.ch.readyState === 'open') return Promise.resolve(cur);
+  if (cur?.connecting) return cur.connecting;
+  const link = { pending: new Map(), recv: null, seq: 0 };
+  link.connecting = (async () => {
+    const pc = new RTCPeerConnection({ iceServers: ICE });
+    const ch = link.ch = pc.createDataChannel('datapro', { ordered: true });
+    ch.binaryType = 'arraybuffer';
+    link.pc = pc;
+    await pc.setLocalDescription(await pc.createOffer());
+    await iceDone(pc);
+    const nonce = b64url(crypto.getRandomValues(new Uint8Array(9)));
+    const dir = `${PEER_DIR}/${id}`, answerPath = `${dir}/answer-${deviceId}.json`;
+    await putJson(`${dir}/offer-${deviceId}.json`, { sdp: pc.localDescription.sdp, client: deviceId, nonce });
+    let ans = null;
+    for (const until = Date.now() + 40e3; !ans; ) {
+      if (Date.now() > until) { dropFile(`${dir}/offer-${deviceId}.json`); throw new Error('测试电脑没有回应：确认那台电脑开着 DataPro，并且已设为测试电脑'); }
+      await sleep(1200);
+      ans = await getJson(answerPath).catch(e => { if (e.notFound || e instanceof SyntaxError) return null; throw e; });
+      if (ans && ans.nonce !== nonce) ans = null;   // left over from an earlier attempt
+    }
+    dropFile(answerPath);
+    await pc.setRemoteDescription({ type: 'answer', sdp: ans.sdp });
+    await new Promise((res, rej) => {
+      const fail = () => rej(new Error('连不上测试电脑：这两台设备之间的网络不允许直连（常见于校园网防火墙或手机网络）'));
+      const t = setTimeout(fail, 20e3);
+      ch.onopen = () => { clearTimeout(t); res(); };
+      pc.onconnectionstatechange = () => { if (pc.connectionState === 'failed') { clearTimeout(t); fail(); } };
+    });
+    ch.onmessage = ev => {
+      if (typeof ev.data !== 'string') { link.recv?.parts.push(ev.data); return; }
+      const m = JSON.parse(ev.data);
+      if (m.t === 'file') { link.recv = { m, parts: [] }; return; }
+      const p = link.pending.get(m.req);
+      link.pending.delete(m.req);
+      if (!p) return;
+      if (m.t === 'end') { const { m: head, parts } = link.recv; link.recv = null; p.resolve({ ...head, file: new File(parts, head.name) }); }
+      else if (m.t === 'err') p.reject(new Error(m.msg));
+      else p.resolve(m);
+    };
+    ch.onclose = () => {
+      links.delete(id);
+      for (const p of link.pending.values()) p.reject(new Error('和测试电脑的连接断了'));
+      if ($('#optLive').checked && [...sources().values()].some(n => fm.nodes.get(n[0]).src.peer === id)) toast('和测试电脑的连接断了，点“刷新”重新连接');
+    };
+    link.connecting = null;
+    return link;
+  })();
+  link.connecting.catch(() => { if (links.get(id) === link) links.delete(id); link.pc?.close(); });
+  links.set(id, link);
+  return link.connecting;
+}
+function askHost(link, msg, ms = 120e3) {
+  const req = ++link.seq;
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => { link.pending.delete(req); reject(new Error('测试电脑没有回应')); }, ms);
+    link.pending.set(req, { resolve: v => { clearTimeout(t); resolve(v); }, reject: e => { clearTimeout(t); reject(e); } });
+    link.ch.send(JSON.stringify({ ...msg, req }));
+  });
+}
+async function peerFetch(src, manual) {
+  // auto refresh only uses a live connection; making a new one is left to a click on 刷新
+  const open = links.get(src.peer);
+  if (!manual && open?.ch?.readyState !== 'open') throw Object.assign(new Error('没有连接'), { quiet: true });
+  const link = await connectHost(src.peer);
+  const r = await askHost(link, { t: 'get', id: src.fid, rev: src.rev });
+  if (r.t === 'same') return { name: src.name, time: r.time };
+  return { file: r.file, name: r.name, time: r.time, src: { ...src, rev: r.rev, name: r.name } };
+}
+
+// --- the 联机 sheet
+const PEER_ICON = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3.5 12.5a6.4 6.4 0 0 1 0-9M12.5 3.5a6.4 6.4 0 0 1 0 9M5.6 10.4a3.4 3.4 0 0 1 0-4.8M10.4 5.6a3.4 3.4 0 0 1 0 4.8"/><circle cx="8" cy="8" r="1"/></svg>';
+function peerSheet() {
+  if (inFrame) { toast('联机只能在独立网页版里用'); return; }
+  if (!lsGet(DBX_LS)?.refresh) { dbxProblem({ login: true }); return; }
+  const scrim = document.createElement('div');
+  scrim.className = 'scrim';
+  scrim.innerHTML = `<div class="sheet" role="dialog" aria-modal="true" aria-label="联机">
+    <h3>联机</h3><p class="sub">直接从测试电脑读正在测的数据。数据在设备之间直传，Dropbox 只用来交换连接信息。</p>
+    ${canPickFiles ? '<fieldset data-host></fieldset>' : ''}
+    <fieldset><legend>连接测试电脑</legend><div data-hosts class="dbxlist"><div class="empty">正在查找…</div></div></fieldset>
+    <div class="actions"><button class="btn" type="button" data-close>关闭</button></div></div>`;
+  const q = s => scrim.querySelector(s);
+  const close = () => scrim.remove();
+  q('[data-close]').onclick = close;
+  scrim.addEventListener('click', e => { if (e.target === scrim) close(); });
+  scrim.addEventListener('keydown', e => { if (e.key === 'Escape') close(); });
+  function renderHost() {
+    const el = q('[data-host]');
+    if (!el) return;
+    const n = sharedFiles().length;
+    el.innerHTML = `<legend>把这台电脑设为测试电脑</legend>
+      <p class="note">${host.on ? `正在共享 ${n} 个文件，${host.peers.size} 台设备连着。DataPro 开着才能连，电脑不要睡眠。` : `共享这台电脑上用“导入”打开的 ${n} 个文件。`}</p>
+      <div class="inline"><input type="text" data-name value="${esc(host.name || lsGet('datapro-host')?.name || '测试电脑')}" autocomplete="off" aria-label="测试电脑名字">
+      <button class="btn${host.on ? '' : ' primary'}" type="button" data-toggle>${host.on ? '停止' : '设为测试电脑'}</button></div>`;
+    q('[data-toggle]').onclick = async () => {
+      if (host.on) { hostStop(); renderHost(); return; }
+      if (!n) { toast('先用“导入”打开正在测的文件'); return; }
+      try { await hostStart(q('[data-name]').value.trim() || '测试电脑'); } catch (e) { host.on = false; e.login ? (close(), dbxProblem(e)) : toast(e.message); }
+      renderHost();
+    };
+  }
+  async function renderHosts() {
+    const box = q('[data-hosts]');
+    let hosts;
+    try { hosts = await listHosts(); }
+    catch (e) { if (e.login) { close(); dbxProblem(e); return; } box.innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+    box.innerHTML = hosts.map(h => `<div class="ent" role="button" tabindex="0" data-id="${esc(h.id)}">${PEER_ICON}<span class="nm">${esc(h.name)}</span><small>${h.online ? '在线' : '离线'}</small></div>`).join('')
+      || '<div class="empty">还没有测试电脑。在测量电脑的 Chrome 或 Edge 里打开 DataPro，点“联机”设一下。</div>';
+  }
+  async function openHost(id, hostName) {
+    const box = q('[data-hosts]');
+    box.innerHTML = '<div class="empty">正在连接测试电脑…</div>';
+    let list;
+    try { list = await askHost(await connectHost(id), { t: 'list' }, 30e3); }
+    catch (e) {
+      if (e.login) { close(); dbxProblem(e); return; }
+      box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+      log(e.message, true);
+      return;
+    }
+    const picked = new Set();
+    box.innerHTML = list.files.map(f => `<label class="ent"><input type="checkbox" data-fid="${esc(f.id)}"><span class="nm">${esc(f.name)}</span></label>`).join('')
+      || '<div class="empty">测试电脑上还没有共享的文件</div>';
+    box.onchange = e => { const id2 = e.target.dataset.fid; if (!id2) return; e.target.checked ? picked.add(id2) : picked.delete(id2); e.target.closest('.ent').classList.toggle('sel', e.target.checked); ok.disabled = !picked.size; };
+    const ok = document.createElement('button');
+    ok.className = 'btn primary'; ok.type = 'button'; ok.textContent = '导入'; ok.disabled = true;
+    q('.actions').append(ok);
+    ok.onclick = async () => {
+      close();
+      const target = targetFolder();
+      const before = new Set(fm.nodes.keys());
+      await withBusy(`正在从“${list.name || hostName}”读取…`, async () => {
+        for (const f of list.files.filter(x => picked.has(x.id))) {
+          try {
+            const src0 = { path: `peer:${id}:${f.id}`, peer: id, fid: f.id, rev: null, name: f.name };
+            const r = await peerFetch(src0, true);
+            const p = await parseFile(r.file);
+            const b = new Set(fm.nodes.keys());
+            p.add(target);
+            topAdded(b).forEach(n => { fm.nodes.get(n).src = r.src; });
+            log(p.msg + `，来自测试电脑“${list.name || hostName}”`);
+          } catch (e) { log(`${f.name}：${e.message}`, true); toast(`${f.name} 读取失败`); }
+        }
+      });
+      finishImport(target, before);
+    };
+  }
+  q('[data-hosts]').addEventListener('click', e => { const d = e.target.closest('[data-id]'); if (d) openHost(d.dataset.id, d.querySelector('.nm').textContent); });
+  document.body.append(scrim);
+  renderHost();
+  renderHosts();
+}
+$('#btnPeer').onclick = peerSheet;
+if (inFrame) $('#btnPeer').hidden = true;
+// a test PC that was on before a reload comes back on by itself when it may still read its files
+async function resumeHost() {
+  const saved = lsGet('datapro-host');
+  if (!saved?.on || !canPickFiles || !lsGet(DBX_LS)?.refresh) return;
+  host.name = saved.name;
+  const files = sharedFiles();
+  const ok = files.length && (await Promise.all(files.map(f => handles.get(f.id).queryPermission({ mode: 'read' })))).every(s => s === 'granted');
+  if (ok) await hostStart(saved.name).catch(e => log(`测试电脑没能恢复：${e.message}`, true));
+  else log('测试电脑已暂停：点“联机”重新开启', true);
+}
+
+// ------------------------------------------------------------------ refresh (Dropbox, local or 测试电脑)
 // source path -> top-level node names imported from that file, in tree order
 function sources() {
   const m = new Map();
@@ -1056,6 +1376,7 @@ function srcOf(name) {
 }
 async function fetchLatest(src, ask) {
   if (src.local) return localFetch(src, ask);
+  if (src.peer) return peerFetch(src, ask);
   const { meta, file } = await dbxFetch(src.path, src.rev);
   return { file, name: meta.name, time: meta.server_modified, src: { path: meta.path_lower, rev: meta.rev } };
 }
@@ -1066,7 +1387,8 @@ async function refreshSource(names, auto) {
   const files = names.flatMap(n => fm.filesRecursive(n));
   if (auto && files.some(f => fm.nodes.get(f).modified)) return { skipped: true };
   const r = await fetchLatest(src, !auto);
-  if (!r.file) return { unchanged: r.time, local: !!src.local };
+  const kind = src.local ? 'local' : src.peer ? 'peer' : 'dropbox';
+  if (!r.file) return { unchanged: r.time, kind };
   const p = await parseFile(r.file);
   const parent = fm.nodes.get(names[0]).parent;
   const at = fm.siblings(names[0]).indexOf(names[0]);
@@ -1081,16 +1403,16 @@ async function refreshSource(names, auto) {
   top.forEach((n, i) => { fm.nodes.get(n).src = nsrc; fm.moveItem(n, parent, at + i); });
   applyRenames(top.flatMap(n => fm.filesRecursive(n)), src.renames);
   state.open = new Set([...open].filter(n => fm.nodes.has(n)));
-  return { name: r.name, added: rowsOf(top) - rows, edited, time: r.time, local: !!src.local };
+  return { name: r.name, added: rowsOf(top) - rows, edited, time: r.time, kind };
 }
-const whereOf = r => r.local ? '文件' : 'Dropbox 上';
+const whereOf = r => ({ local: '文件', peer: '测试电脑上', dropbox: 'Dropbox 上' })[r.kind];
 let refreshing = false;
 async function refreshSources(auto = false) {
   if (refreshing) return;
   const groups = sources();
   const paths = new Set(state.selected.length ? selectedFiles().map(srcOf).filter(Boolean) : groups.keys());
   if (!paths.size) {
-    if (!auto) toast(canPickFiles ? '用“导入”或“Dropbox”导入的文件才能刷新' : '用“Dropbox”按钮导入的文件才能刷新');
+    if (!auto) toast(canPickFiles ? '用“导入”“Dropbox”或“联机”导入的文件才能刷新' : '用“Dropbox”或“联机”导入的文件才能刷新');
     return;
   }
   refreshing = true;
@@ -1107,6 +1429,7 @@ async function refreshSources(auto = false) {
         else done.push(r);
       } catch (e) {
         if (e.login || (e.permission && auto)) { problem = e; break; }
+        if (e.quiet) continue;
         failed++;
         const gone = e.notFound || e.name === 'NotFoundError';
         log(`刷新 ${fm.nodes.get(groups.get(p)[0]).name} 失败：${gone ? '找不到这个文件了' : e.message}`, true);
@@ -1947,6 +2270,7 @@ async function start() {
   }
   renderTree(); updateColumns(); plot();
   if (await dbxFinishLogin()) dbxImport();
+  resumeHost();
 }
 matchMedia('(prefers-color-scheme: dark)').addEventListener?.('change', () => plot());
 // redraw when the plot box changes size (rotation, split view, fonts settling)
