@@ -225,7 +225,7 @@ select.col { width: 150px; }
         <label class="chk"><input type="checkbox" id="optGrid" checked>网格</label>
         <label class="chk"><input type="checkbox" id="optLegend" checked>图例</label>
         <span class="live" id="liveCtl">
-          <button class="btn small" id="btnRefresh" type="button" title="重新读取选中文件在 Dropbox 里的最新版本">
+          <button class="btn small" id="btnRefresh" type="button" title="重新读取选中文件的最新版本">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3"/></svg>刷新</button>
           <label class="chk" title="每 5 秒检查一次，文件变了才重新读取"><input type="checkbox" id="optLive">自动</label>
         </span>
@@ -367,7 +367,11 @@ function columnsOf(files) {
 }
 
 // ------------------------------------------------------------------ tree
-const SRC_ICON = '<svg class="src" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-label="Dropbox"><title>来自 Dropbox，可以刷新</title><path d="M4.5 12.5h7.2a2.8 2.8 0 0 0 .4-5.6 4 4 0 0 0-7.7-.9A3.3 3.3 0 0 0 4.5 12.5z"/></svg>';
+const SRC_ICONS = {
+  dropbox: '<svg class="src" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-label="Dropbox"><title>来自 Dropbox，可以刷新</title><path d="M4.5 12.5h7.2a2.8 2.8 0 0 0 .4-5.6 4 4 0 0 0-7.7-.9A3.3 3.3 0 0 0 4.5 12.5z"/></svg>',
+  local: '<svg class="src" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-label="本地文件"><title>本地文件，可以刷新</title><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9M13.5 2v3h-3"/></svg>',
+};
+const srcIcon = n => n.src ? SRC_ICONS[n.src.local ? 'local' : 'dropbox'] : '';
 const CARET = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 3 5 5-5 5"/></svg>';
 function renderTree() {
   orderSelection();
@@ -382,12 +386,12 @@ function renderTree() {
         const open = state.open.has(name);
         rows.push(`<div class="item folder${sel ? ' sel' : ''}" role="treeitem" aria-expanded="${open}" aria-selected="${sel}" tabindex="0" data-name="${esc(name)}" style="padding-left:${pad}px">
           <button class="caret${open ? ' open' : ''}" type="button" data-caret aria-label="${open ? '收起' : '展开'}">${CARET}</button>
-          <span class="tick"></span><span class="name">${esc(name)}</span>${n.src ? SRC_ICON : ''}<span class="meta">${fm.filesRecursive(name).length}</span></div>`);
+          <span class="tick"></span><span class="name">${esc(name)}</span>${srcIcon(n)}<span class="meta">${fm.filesRecursive(name).length}</span></div>`);
         if (open) rec(n.children, depth + 1);
       } else {
         const t = fm.current(name);
         rows.push(`<div class="item${sel ? ' sel' : ''}" role="treeitem" aria-selected="${sel}" tabindex="0" data-name="${esc(name)}" style="padding-left:${pad}px">
-          <span class="spacer"></span><span class="tick"></span><span class="name">${esc(name)}</span>${n.src ? SRC_ICON : ''}
+          <span class="spacer"></span><span class="tick"></span><span class="name">${esc(name)}</span>${srcIcon(n)}
           ${n.modified ? '<span class="badge">已改</span>' : ''}<span class="meta">${DP.nrows(t).toLocaleString()}</span></div>`);
       }
     }
@@ -717,7 +721,7 @@ $('#btnDelPts').onclick = async () => {
 };
 
 // ------------------------------------------------------------------ import
-$('#btnImport').onclick = () => $('#fileInput').click();
+$('#btnImport').onclick = () => canPickFiles ? importLocal() : $('#fileInput').click();
 $('#fileInput').onchange = async e => {
   const files = [...e.target.files];
   e.target.value = '';
@@ -972,8 +976,60 @@ async function dbxImport() {
   if (problem) dbxProblem(problem);
 }
 
-// path -> top-level node names imported from that Dropbox file, in tree order
-function dbxSources() {
+// ------------------------------------------------------------------ local files (Chrome/Edge on a computer)
+// showOpenFilePicker hands back a handle the page may read again later, so these files refresh straight
+// from disk, without waiting for Dropbox to sync. node.src = { path: 'local:<id>', local: true, rev: 'mtime:size' }.
+const canPickFiles = 'showOpenFilePicker' in window && !inFrame;
+const handles = new Map();   // src.path -> FileSystemFileHandle (kept in IndexedDB between visits)
+const stampOf = f => `${f.lastModified}:${f.size}`;
+// read the whole file now; Chrome refuses to read a File object once the file on disk has changed
+async function readHandle(h) {
+  for (let tries = 0; ; tries++) {
+    const f = await h.getFile();
+    try { return new File([await f.arrayBuffer()], f.name, { lastModified: f.lastModified }); }
+    catch (e) { if (tries >= 2 || e.name !== 'NotReadableError') throw e; }   // written to mid-read: try again
+  }
+}
+async function importLocal() {
+  let picked;
+  try { picked = await showOpenFilePicker({ multiple: true, id: 'datapro' }); }
+  catch (e) { if (e.name !== 'AbortError') toast('无法打开文件：' + e.message); return; }
+  const target = targetFolder();
+  const before = new Set(fm.nodes.keys());
+  await withBusy(`正在读取 ${picked.length} 个文件…`, async () => {
+    for (const h of picked) {
+      try {
+        const file = await readHandle(h);
+        const p = await parseFile(file);
+        const b = new Set(fm.nodes.keys());
+        p.add(target);
+        const id = 'local:' + b64url(crypto.getRandomValues(new Uint8Array(9)));
+        handles.set(id, h);
+        const src = { path: id, local: true, rev: stampOf(file) };
+        topAdded(b).forEach(n => { fm.nodes.get(n).src = src; });
+        log(p.msg);
+      } catch (err) { log(`${h.name}：${err.message || err}`, true); toast(`${h.name} 读取失败`); }
+    }
+  });
+  finishImport(target, before);
+}
+async function localFetch(src, ask) {
+  const h = handles.get(src.path);
+  if (!h) throw new Error('这台设备上没有这个文件的记录，请重新导入');
+  // after a reload Chrome may want the permission again, and only grants it on a click
+  if (await h.queryPermission({ mode: 'read' }) !== 'granted'
+      && (!ask || await h.requestPermission({ mode: 'read' }) !== 'granted'))
+    throw Object.assign(new Error('需要允许读取这个文件'), { permission: true });
+  const f = await h.getFile();
+  const time = new Date(f.lastModified).toISOString();
+  if (stampOf(f) === src.rev) return { name: f.name, time };
+  const file = await readHandle(h);
+  return { file, name: f.name, time, src: { ...src, rev: stampOf(file) } };
+}
+
+// ------------------------------------------------------------------ refresh (Dropbox or local)
+// source path -> top-level node names imported from that file, in tree order
+function sources() {
   const m = new Map();
   for (const { name } of fm.walk()) {
     const src = fm.nodes.get(name).src;
@@ -985,15 +1041,20 @@ function srcOf(name) {
   for (let n = fm.nodes.get(name); n; n = n.parent ? fm.nodes.get(n.parent) : null) if (n.src) return n.src.path;
   return null;
 }
+async function fetchLatest(src, ask) {
+  if (src.local) return localFetch(src, ask);
+  const { meta, file } = await dbxFetch(src.path, src.rev);
+  return { file, name: meta.name, time: meta.server_modified, src: { path: meta.path_lower, rev: meta.rev } };
+}
 const rowsOf = names => names.reduce((s, n) => s + fm.filesRecursive(n).reduce((t, f) => t + DP.nrows(fm.current(f)), 0), 0);
-// swap the nodes of one Dropbox file for its latest version, at the same place under the same names
-async function refreshSource(names, keepEdits) {
+// swap the nodes of one source file for its latest version, at the same place under the same names
+async function refreshSource(names, auto) {
   const src = fm.nodes.get(names[0]).src;
   const files = names.flatMap(n => fm.filesRecursive(n));
-  if (keepEdits && files.some(f => fm.nodes.get(f).modified)) return { skipped: true };
-  const { meta, file } = await dbxFetch(src.path, src.rev);
-  if (!file) return { unchanged: meta.server_modified };
-  const p = await parseFile(file);
+  if (auto && files.some(f => fm.nodes.get(f).modified)) return { skipped: true };
+  const r = await fetchLatest(src, !auto);
+  if (!r.file) return { unchanged: r.time, local: !!src.local };
+  const p = await parseFile(r.file);
   const parent = fm.nodes.get(names[0]).parent;
   const at = fm.siblings(names[0]).indexOf(names[0]);
   const rows = rowsOf(names), open = new Set(state.open);
@@ -1003,48 +1064,53 @@ async function refreshSource(names, keepEdits) {
   const before = new Set(fm.nodes.keys());
   p.add(parent);
   const top = topAdded(before);
-  const nsrc = { path: meta.path_lower, rev: meta.rev };
-  top.forEach((n, i) => { fm.nodes.get(n).src = nsrc; fm.moveItem(n, parent, at + i); });
+  top.forEach((n, i) => { fm.nodes.get(n).src = r.src; fm.moveItem(n, parent, at + i); });
   state.open = new Set([...open].filter(n => fm.nodes.has(n)));
-  return { name: meta.name, added: rowsOf(top) - rows, edited, modified: meta.server_modified };
+  return { name: r.name, added: rowsOf(top) - rows, edited, time: r.time, local: !!src.local };
 }
+const whereOf = r => r.local ? '文件' : 'Dropbox 上';
 let refreshing = false;
-async function refreshDropbox(auto = false) {
+async function refreshSources(auto = false) {
   if (refreshing) return;
-  const groups = dbxSources();
+  const groups = sources();
   const paths = new Set(state.selected.length ? selectedFiles().map(srcOf).filter(Boolean) : groups.keys());
   if (!paths.size) {
-    if (!auto) toast(groups.size ? '选中的文件不是从 Dropbox 导入的' : '用“Dropbox”按钮导入的文件才能刷新');
+    if (!auto) toast(canPickFiles ? '用“导入”或“Dropbox”导入的文件才能刷新' : '用“Dropbox”按钮导入的文件才能刷新');
     return;
   }
   refreshing = true;
   $('#btnRefresh').disabled = true;
   const done = [];
-  let skipped = 0, failed = 0, problem = null, unchanged = '';
+  let skipped = 0, failed = 0, problem = null, unchanged = null;
   try {
     for (const p of paths) {
       try {
         // auto refresh never throws away deleted points or symmetrizing
         const r = await refreshSource(groups.get(p), auto);
-        if (r.skipped) skipped++; else if (r.unchanged) { if (r.unchanged > unchanged) unchanged = r.unchanged; } else done.push(r);
+        if (r.skipped) skipped++;
+        else if (r.unchanged) { if (!unchanged || r.unchanged > unchanged.unchanged) unchanged = r; }
+        else done.push(r);
       } catch (e) {
-        if (e.login) { problem = e; break; }
+        if (e.login || (e.permission && auto)) { problem = e; break; }
         failed++;
-        log(`刷新 ${p} 失败：${e.notFound ? 'Dropbox 里找不到这个文件了' : e.message}`, true);
+        const gone = e.notFound || e.name === 'NotFoundError';
+        log(`刷新 ${fm.nodes.get(groups.get(p)[0]).name} 失败：${gone ? '找不到这个文件了' : e.message}`, true);
       }
     }
   } finally { refreshing = false; $('#btnRefresh').disabled = false; }
   if (done.length) {
     renderTree(); updateColumns(); plot(); save();
-    log('已刷新：' + done.map(d => `${d.name}（${d.added >= 0 ? '+' : ''}${d.added} 行，Dropbox 上 ${fmtClock(d.modified)} 的版本${d.edited ? '，之前的修改已丢弃' : ''}）`).join('，'));
+    log('已刷新：' + done.map(d => `${d.name}（${d.added >= 0 ? '+' : ''}${d.added} 行，${whereOf(d)} ${fmtClock(d.time)} 的版本${d.edited ? '，之前的修改已丢弃' : ''}）`).join('，'));
   } else if (!auto && !problem) {
-    // say how old Dropbox's copy is, so a lagging sync is told apart from a failed refresh
-    const msg = failed ? '刷新失败，详情见底部记录' : skipped ? '改过的文件不会自动刷新' : `没有新数据：Dropbox 上还是 ${fmtClock(unchanged)} 的版本`;
+    // say how old the copy is, so a lagging sync is told apart from a failed refresh
+    const msg = failed ? '刷新失败，详情见底部记录' : skipped ? '改过的文件不会自动刷新'
+      : `没有新数据：${whereOf(unchanged)}还是 ${fmtClock(unchanged.unchanged)} 的版本`;
     toast(msg); log(msg, failed > 0);
   }
   if (problem) {
     if (auto) { $('#optLive').checked = false; setLive(false); }
-    dbxProblem(problem);
+    if (problem.permission) toast('先点一次“刷新”，允许读取文件，再打开自动刷新');
+    else dbxProblem(problem);
   }
 }
 let liveTimer = null;
@@ -1056,10 +1122,10 @@ function setLive(on) {
 function liveTick() {
   // stay out of the way while a dialog, the mapping view or a point selection is open
   if (document.hidden || document.querySelector('.scrim, .busy, .mapview') || countPoints()) return;
-  refreshDropbox(true);
+  refreshSources(true);
 }
 $('#btnDbx').onclick = dbxImport;
-$('#btnRefresh').onclick = () => refreshDropbox();
+$('#btnRefresh').onclick = () => refreshSources();
 $('#optLive').onchange = e => setLive(e.target.checked);
 if (inFrame) { $('#btnDbx').hidden = true; $('#liveCtl').hidden = true; }
 
@@ -1746,9 +1812,12 @@ async function saveNow() {
     await kv('put', 'project', DP.projectToJson(fm));
     await kv('put', 'ui', JSON.stringify({ x: state.x, y: state.y, open: [...state.open], selected: state.selected,
       scaleX: $('#scaleX').value, scaleY: $('#scaleY').value, markers: $('#optMarkers').checked, grid: $('#optGrid').checked, legend: $('#optLegend').checked }));
-    const sources = {};
-    for (const [name, n] of fm.nodes) if (n.src) sources[name] = n.src;
-    await kv('put', 'sources', JSON.stringify(sources));
+    const srcs = {};
+    for (const [name, n] of fm.nodes) if (n.src) srcs[name] = n.src;
+    await kv('put', 'sources', JSON.stringify(srcs));
+    const hs = {};
+    for (const src of Object.values(srcs)) if (src.local && handles.has(src.path)) hs[src.path] = handles.get(src.path);
+    await kv('put', 'handles', hs);
   } catch (e) { /* storage unavailable: the session still works */ }
 }
 function save() { clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 600); }
@@ -1791,6 +1860,7 @@ async function start() {
       if (ui.scaleY) $('#scaleY').value = ui.scaleY;
       ['markers', 'grid', 'legend'].forEach(k => { if (k in ui) $('#opt' + k[0].toUpperCase() + k.slice(1)).checked = ui[k]; });
       for (const [name, src] of Object.entries(JSON.parse((await kv('get', 'sources')) || '{}'))) if (fm.nodes.has(name)) fm.nodes.get(name).src = src;
+      for (const [k, h] of Object.entries((await kv('get', 'handles').catch(() => null)) || {})) handles.set(k, h);
       restored = fm.nodes.size > 0;
     }
   } catch (e) { /* no stored session */ }
