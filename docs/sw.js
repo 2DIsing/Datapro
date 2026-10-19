@@ -1,6 +1,6 @@
 // Offline support: the page itself is fetched fresh when online (so updates show up),
 // everything else (pinned CDN libraries, fonts, icons, the blosc plugin) is served from cache.
-const VERSION = '367b40599e';
+const VERSION = '6f7d03bb2c';
 const CACHE = 'datapro-' + VERSION;
 const SHELL = ['./', 'index.html', 'manifest.webmanifest', 'icons/icon-180.png', 'icons/icon-192.png',
   'icons/icon-512.png', 'h5plugins/libH5Zblosc.wasm'];

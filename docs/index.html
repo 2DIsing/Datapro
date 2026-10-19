@@ -236,7 +236,8 @@ select.col { width: 150px; }
           <button class="btn" id="btnMerge" type="button">合并 sweep</button>
           <button class="btn" id="btnReset" type="button">还原数据</button>
           <button class="btn" id="btnCopy" type="button">复制 X/Y</button>
-          <button class="btn wide" id="btnMap" type="button">2D mapping</button>
+          <button class="btn" id="btnRenameCol" type="button">改列名</button>
+          <button class="btn" id="btnMap" type="button">2D mapping</button>
         </div>
       </section>
 
@@ -1869,6 +1870,7 @@ const state = {
   selected: [],            // selected tree items, in tree order
   open: new Set(),         // expanded folders
   x: '', y: '',
+  anchor: null,            // last clicked tree item, for shift-click ranges
   mode: 'gesture',
   zoomed: false,           // view differs from the full-data view
   points: new Map(),       // file -> Set(row index)
@@ -2005,8 +2007,19 @@ $('#tree').addEventListener('click', e => {
     renderTree();
     return;
   }
-  const i = state.selected.indexOf(name);
-  if (i >= 0) state.selected.splice(i, 1); else state.selected.push(name);
+  // shift-click: add everything shown between the last clicked item and this one
+  const rows = [...$('#tree').querySelectorAll('.item')];
+  const a = rows.findIndex(r => r.dataset.name === state.anchor), b = rows.indexOf(item);
+  if (e.shiftKey && a >= 0 && a !== b) {
+    // between two files, stay at file level instead of pulling in whole folders
+    const filesOnly = ![rows[a], item].some(r => r.classList.contains('folder'));
+    for (const r of rows.slice(Math.min(a, b), Math.max(a, b) + 1))
+      if (!(filesOnly && r.classList.contains('folder')) && !state.selected.includes(r.dataset.name)) state.selected.push(r.dataset.name);
+  } else {
+    const i = state.selected.indexOf(name);
+    if (i >= 0) state.selected.splice(i, 1); else state.selected.push(name);
+  }
+  state.anchor = name;
   onSelectionChange();
 });
 $('#tree').addEventListener('keydown', e => {
@@ -2659,7 +2672,9 @@ async function refreshSource(names, auto) {
   const before = new Set(fm.nodes.keys());
   p.add(parent);
   const top = topAdded(before);
-  top.forEach((n, i) => { fm.nodes.get(n).src = r.src; fm.moveItem(n, parent, at + i); });
+  const nsrc = src.renames ? { ...r.src, renames: src.renames } : r.src;
+  top.forEach((n, i) => { fm.nodes.get(n).src = nsrc; fm.moveItem(n, parent, at + i); });
+  applyRenames(top.flatMap(n => fm.filesRecursive(n)), src.renames);
   state.open = new Set([...open].filter(n => fm.nodes.has(n)));
   return { name: r.name, added: rowsOf(top) - rows, edited, time: r.time, local: !!src.local };
 }
@@ -2815,6 +2830,65 @@ $('#btnReset').onclick = async () => {
   log(`已还原 ${files.length} 个文件`);
   renderTree(); updateColumns(); plot(); save();
 };
+
+// ------------------------------------------------------------------ column names
+// Renames live in DataPro only; the original files are never written. Files that can be refreshed keep
+// their renames in src.renames (original name -> shown name) so a fresh read gets the same names again.
+function renameInTable(t, from, to) {
+  const data = {};
+  const columns = t.columns.map(c => { const n = c === from ? to : c; data[n] = t.data[c]; return n; });
+  return { columns, data };
+}
+// true when the file had `from` and now shows `to`
+function renameInFile(f, from, to) {
+  const n = fm.nodes.get(f), cur = fm.current(f);
+  if (!cur.columns.includes(from) || cur.columns.includes(to)) return false;
+  for (const k of ['data', 'modified'])
+    if (n[k] && n[k].columns.includes(from) && !n[k].columns.includes(to)) n[k] = renameInTable(n[k], from, to);
+  return true;
+}
+function applyRenames(files, renames) {
+  for (const [orig, shown] of Object.entries(renames || {})) files.forEach(f => renameInFile(f, orig, shown));
+}
+async function renameColumnDialog() {
+  const files = selectedFiles();
+  if (!files.length) { toast('先选文件'); return; }
+  const cols = [...new Set(files.flatMap(f => fm.current(f).columns))];
+  const pre = cols.includes(state.y) ? state.y : cols[0];
+  const r = await sheet('改列名', `只改 DataPro 里的这 ${files.length} 个文件，不会动原始数据文件。`,
+    `<div class="grid2"><label>原列名<select name="from">${cols.map(c => `<option value="${esc(c)}"${c === pre ? ' selected' : ''}>${esc(c)}</option>`).join('')}</select></label>
+      <label>新列名<input type="text" name="to" id="renameColTo" value="${esc(pre)}" autocomplete="off"></label></div>`,
+    [{ label: '取消', value: null }, { label: '改名', value: 'ok', primary: true }],
+    scrim => {
+      const sel = scrim.querySelector('[name=from]'), inp = scrim.querySelector('#renameColTo');
+      sel.onchange = () => { inp.value = sel.value; inp.select(); };
+      inp.select();
+    });
+  if (!r) return;
+  const from = formVal(r.form, 'from'), to = formVal(r.form, 'to').trim();
+  if (!to || to === from) return;
+  let done = 0, clash = 0;
+  for (const f of files) {
+    if (!fm.current(f).columns.includes(from)) continue;
+    if (renameInFile(f, from, to)) done++; else clash++;
+  }
+  // remember the rename on each refreshable source, keyed by the name in the original file
+  const groups = sources();
+  for (const path of new Set(files.map(srcOf).filter(Boolean))) {
+    const names = groups.get(path);
+    const old = fm.nodes.get(names[0]).src.renames || {};
+    const orig = Object.keys(old).find(k => old[k] === from) ?? from;
+    const next = { ...old };
+    if (orig === to) delete next[orig]; else next[orig] = to;
+    names.forEach(n => { fm.nodes.get(n).src = { ...fm.nodes.get(n).src, renames: next }; });
+  }
+  if (done && state.x === from) state.x = to;
+  if (done && state.y === from) state.y = to;
+  log(`${from} → ${to}：改了 ${done} 个文件${clash ? `，${clash} 个文件已经有叫 ${to} 的列，没改` : ''}`, clash > 0);
+  if (clash) toast(`${clash} 个文件已有“${to}”列，没改`);
+  renderTree(); updateColumns(); plot(); save();
+}
+$('#btnRenameCol').onclick = renameColumnDialog;
 
 // ------------------------------------------------------------------ processing
 function needXY() {
