@@ -229,6 +229,8 @@ select.col { width: 150px; }
         <label class="field"><span>Y</span><select class="col" id="selY"></select></label>
         <label class="field"><span>X 轴</span><select id="scaleX"><option value="linear">线性</option><option value="log">对数</option></select></label>
         <label class="field"><span>Y 轴</span><select id="scaleY"><option value="linear">线性</option><option value="log">对数</option></select></label>
+        <label class="chk" title="X 轴画绝对值（只改显示，不改数据）"><input type="checkbox" id="optAbsX">|X|</label>
+        <label class="chk" title="Y 轴画绝对值（只改显示，不改数据）"><input type="checkbox" id="optAbsY">|Y|</label>
         <label class="chk"><input type="checkbox" id="optMarkers" checked>点</label>
         <label class="chk"><input type="checkbox" id="optGrid" checked>网格</label>
         <label class="chk"><input type="checkbox" id="optLegend" checked>图例</label>
@@ -462,7 +464,7 @@ function updateColumns() {
 }
 $('#selX').onchange = e => { state.x = e.target.value; clearPoints(false); plot(); save(); };
 $('#selY').onchange = e => { state.y = e.target.value; clearPoints(false); plot(); save(); };
-['scaleX', 'scaleY', 'optMarkers', 'optGrid', 'optLegend'].forEach(id => { $('#' + id).onchange = () => { plot(); save(); }; });
+['scaleX', 'scaleY', 'optAbsX', 'optAbsY', 'optMarkers', 'optGrid', 'optLegend'].forEach(id => { $('#' + id).onchange = () => { plot(); save(); }; });
 
 // ------------------------------------------------------------------ plot
 function cssVar(n) { return getComputedStyle(document.documentElement).getPropertyValue(n).trim(); }
@@ -481,6 +483,9 @@ function plot() {
   }
   if (el.querySelector('.plotempty')) el.innerHTML = '';
   const markers = $('#optMarkers').checked;
+  // |X| / |Y| only change what is drawn; point indices stay those of the data
+  const absX = $('#optAbsX').checked, absY = $('#optAbsY').checked;
+  const col = (t, c, abs) => abs ? t.data[c].map(Math.abs) : t.data[c];
   const traces = [];
   state.traceFiles = [];
   files.forEach((f, i) => {
@@ -489,7 +494,7 @@ function plot() {
     const n = DP.nrows(t);
     traces.push({
       type: n > 4000 ? 'scattergl' : 'scatter', mode: markers ? 'lines+markers' : 'lines', name: f,
-      x: t.data[x], y: t.data[y], line: { width: 1.5, color: TAB10[i % 10] },
+      x: col(t, x, absX), y: col(t, y, absY), line: { width: 1.5, color: TAB10[i % 10] },
       marker: { size: 5, color: TAB10[i % 10] }, opacity: 0.85,
       hovertemplate: `${esc(f)}<br>${esc(x)}=%{x}<br>${esc(y)}=%{y}<extra></extra>`,
     });
@@ -500,7 +505,7 @@ function plot() {
   for (const [f, set] of state.points) {
     const t = fm.current(f);
     if (!t || !t.columns.includes(x) || !t.columns.includes(y)) continue;
-    for (const i of set) { px.push(t.data[x][i]); py.push(t.data[y][i]); }
+    for (const i of set) { px.push(absX ? Math.abs(t.data[x][i]) : t.data[x][i]); py.push(absY ? Math.abs(t.data[y][i]) : t.data[y][i]); }
   }
   if (px.length) traces.push({ type: 'scatter', mode: 'markers', x: px, y: py, name: '选中点', showlegend: false, hoverinfo: 'skip',
     marker: { size: 11, color: 'rgba(0,0,0,0)', line: { width: 2, color: cssVar('--mark') } } });
@@ -509,11 +514,11 @@ function plot() {
   const grid = $('#optGrid').checked;
   const ax = (title, type) => ({ title: axisTitle(title), type, showgrid: grid, gridcolor: line, griddash: 'dash', zeroline: false,
     linecolor: muted, mirror: true, ticks: 'outside', tickcolor: muted, color: ink, exponentformat: 'e', automargin: true });
-  const key = `${files.join('|')}::${x}::${y}::${$('#scaleX').value}${$('#scaleY').value}`;
+  const key = `${files.join('|')}::${x}::${y}::${$('#scaleX').value}${$('#scaleY').value}${absX}${absY}`;
   const narrow = el.clientWidth < 600;
   const layout = {
     paper_bgcolor: 'rgba(0,0,0,0)', plot_bgcolor: 'rgba(0,0,0,0)', font: { family: cssVar('--font'), color: ink, size: 12 },
-    margin: { l: 56, r: 14, t: 10, b: 46 }, xaxis: ax(x, $('#scaleX').value), yaxis: ax(y, $('#scaleY').value),
+    margin: { l: 56, r: 14, t: 10, b: 46 }, xaxis: ax(absX ? `|${x}|` : x, $('#scaleX').value), yaxis: ax(absY ? `|${y}|` : y, $('#scaleY').value),
     showlegend: $('#optLegend').checked && state.traceFiles.length <= 10,
     legend: narrow ? { orientation: 'h', x: 0, y: -0.22, yanchor: 'top', font: { size: 11 } } : { x: 1, xanchor: 'right', y: 1, bgcolor: cssVar('--panel'), bordercolor: line, borderwidth: 1, font: { size: 11 } },
     dragmode: dragModeOf(state.mode), hovermode: 'closest', uirevision: key, selections: [],
@@ -2237,7 +2242,7 @@ async function saveNow() {
   try {
     await kv('put', 'project', DP.projectToJson(fm));
     await kv('put', 'ui', JSON.stringify({ x: state.x, y: state.y, open: [...state.open], selected: state.selected,
-      scaleX: $('#scaleX').value, scaleY: $('#scaleY').value, markers: $('#optMarkers').checked, grid: $('#optGrid').checked, legend: $('#optLegend').checked }));
+      scaleX: $('#scaleX').value, scaleY: $('#scaleY').value, absX: $('#optAbsX').checked, absY: $('#optAbsY').checked, markers: $('#optMarkers').checked, grid: $('#optGrid').checked, legend: $('#optLegend').checked }));
     const srcs = {};
     for (const [name, n] of fm.nodes) if (n.src) srcs[name] = n.src;
     await kv('put', 'sources', JSON.stringify(srcs));
@@ -2284,7 +2289,7 @@ async function start() {
       state.selected = (ui.selected || []).filter(n => fm.nodes.has(n));
       if (ui.scaleX) $('#scaleX').value = ui.scaleX;
       if (ui.scaleY) $('#scaleY').value = ui.scaleY;
-      ['markers', 'grid', 'legend'].forEach(k => { if (k in ui) $('#opt' + k[0].toUpperCase() + k.slice(1)).checked = ui[k]; });
+      ['absX', 'absY', 'markers', 'grid', 'legend'].forEach(k => { if (k in ui) $('#opt' + k[0].toUpperCase() + k.slice(1)).checked = ui[k]; });
       for (const [name, src] of Object.entries(JSON.parse((await kv('get', 'sources')) || '{}'))) if (fm.nodes.has(name)) fm.nodes.get(name).src = src;
       for (const [k, h] of Object.entries((await kv('get', 'handles').catch(() => null)) || {})) handles.set(k, h);
       restored = fm.nodes.size > 0;
